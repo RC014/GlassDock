@@ -95,7 +95,7 @@
     </Window.Resources>
 
     <Grid>
-        <local:GlassSurface x:Name="Glass" />
+        <local:GlassSurface x:Name="Glass" BandScale="0.4" />
 
         <Grid>
             <Grid.RowDefinitions>

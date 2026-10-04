@@ -11,8 +11,8 @@ namespace GlassDock;
 
 /// <summary>
 /// The drawn part of a glass bar. Bottom to top: the refracted background (a live copy of the screen
-/// behind the bar run through <see cref="LensEffect"/>, magnified and softened towards the centre, clear at the
-/// rim), a light tint, a body gradient, a soft inner edge glow, a top sheen, a diagonal shine and a thin
+/// behind the bar run through <see cref="LensEffect"/>: a flat sheet of glass, bent in a band along the rim and
+/// blurred over the middle), a light tint, a body gradient, a soft inner edge glow, a top sheen, a diagonal shine and a thin
 /// specular rim. Every layer uses the "Radius" resource for its corners; brushes come from <see cref="Theme"/>.
 /// </summary>
 public sealed class GlassSurface : Grid
@@ -42,9 +42,6 @@ public sealed class GlassSurface : Grid
         if (Settings.Current.Refraction)
         {
             _lens.Strength = Settings.Current.RefractionStrength;
-            // RefractionEdge = share of the rim-to-centre distance over which the effect builds up
-            double edge = 1 / (0.5 * Settings.Current.RefractionEdge);
-            _lens.Edge = _blurHEffect.Edge = _blurVEffect.Edge = edge;
             _lensImage.Effect = _lens;
             RenderOptions.SetBitmapScalingMode(_lensBrush, BitmapScalingMode.Linear);
             _lensImage.Background = _lensBrush;
@@ -88,6 +85,9 @@ public sealed class GlassSurface : Grid
         Add(null, "GlassRim", 1, 0, hitTest: false);
     }
 
+    /// <summary>Scales the width of the refracting band (1 = normal; smaller for big panels such as the Start menu).</summary>
+    public double BandScale { get; set; } = 1;
+
     private void UpdateClip()
     {
         double r = TryFindResource("Radius") is CornerRadius cr ? cr.TopLeft : 0;
@@ -99,8 +99,14 @@ public sealed class GlassSurface : Grid
         {
             double aspect = ActualWidth / ActualHeight;
             _lens.Aspect = _blurHEffect.Aspect = _blurVEffect.Aspect = aspect;
-            // Long bars get the capsule lens; squarer glass (previews, Quick Settings) the smooth dome lens.
-            _lens.Dome = _blurHEffect.Dome = _blurVEffect.Dome = aspect < 3 ? 1 : 0;
+            // Refracting band along the rim: RefractionEdge sets its share of the short side (1 = a fifth),
+            // BandScale narrows it on big glass. The band's rounded rectangle uses the glass's own corner radius
+            // (at least the band width, so the bending turns smoothly round the corners).
+            double minDim = Math.Min(ActualWidth, ActualHeight);
+            double band = Math.Max(1, minDim * 0.2 * Settings.Current.RefractionEdge * BandScale);
+            double radius = Math.Min(Math.Max(r, band), minDim / 2);
+            _lens.Band = _blurHEffect.Band = _blurVEffect.Band = band / ActualHeight;
+            _lens.Radius = _blurHEffect.Radius = _blurVEffect.Radius = radius / ActualHeight;
             // blur radius at the centre line (fading to none at the rim), per pass direction, in uv units
             double blurDip = Settings.Current.RefractionBlur * MaxBlurDip;
             _blurHEffect.Direction = new Point(blurDip / Math.Max(1, ActualWidth), 0);
