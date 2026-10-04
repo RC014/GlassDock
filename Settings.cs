@@ -21,9 +21,9 @@ internal sealed class Settings
     public double BottomMargin { get; set; } = 6;
     public double SideMargin { get; set; } = 6;
     /// <summary>0..1 strength of the colour tint over the blur. Lower = clearer glass.</summary>
-    public double GlassOpacity { get; set; } = 0.5;
+    public double GlassOpacity { get; set; } = 0.43;
     /// <summary>0..1 strength of the glass's white light layers (sheen, shine, edge glow, rim). Lower = less white.</summary>
-    public double GlassHighlights { get; set; } = 0.6;
+    public double GlassHighlights { get; set; } = 0.45;
     /// <summary>Frosted glass (system blur) when >= 0.5, clear glass below. The system blur can't be blended partially.</summary>
     public double GlassBlur { get; set; } = 0;
     /// <summary>Real refraction: the background behind the bars is magnified and softened towards their centre.

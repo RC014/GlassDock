@@ -99,8 +99,8 @@ Menus close by themselves when you move the cursor away from them.
 | `RefractionEdge` | 1 | How gradually refraction and blur build up from the rim (0.1 = thin clear rim, 1 = gradual all the way to the centre) |
 | `RefractionBlur` | 0.35 | Blur seen through the glass (0–1), strongest at the centre, none at the rim |
 | `GlassBlur` | 0 | When refraction is off: 1 = frosted glass (Windows blur), 0 = clear glass |
-| `GlassOpacity` | 0.5 | Strength of the tint over the glass (lower = clearer) |
-| `GlassHighlights` | 0.6 | Strength of the glass's white shine, edge glow and rim (lower = less white) |
+| `GlassOpacity` | 0.43 | Strength of the tint over the glass (lower = clearer) |
+| `GlassHighlights` | 0.45 | Strength of the glass's white shine, edge glow and rim (lower = less white) |
 | `BottomMargin` / `SideMargin` | 6 | Gap between the bubbles and the screen edges |
 | `AutoHide` | true | Show the bars only when the cursor touches the bottom edge |
 | `ReserveScreenSpace` | false | With `AutoHide` off: maximised windows stop above the dock |
