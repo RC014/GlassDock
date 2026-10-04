@@ -51,6 +51,8 @@ internal sealed class PreviewWindow : Window
 
         SourceInitialized += (_, _) =>
         {
+            // Raised inside EnsureHandle below, before _hwnd is assigned: take the handle from the helper.
+            _hwnd = new WindowInteropHelper(this).Handle;
             int ex = Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE);
             Native.SetWindowLong(_hwnd, Native.GWL_EXSTYLE, (ex | Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE) & ~Native.WS_EX_APPWINDOW);
             int round = 2; // DWMWCP_ROUND: native Windows 11 rounded corners and shadow
