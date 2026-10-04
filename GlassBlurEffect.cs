@@ -26,6 +26,10 @@ public sealed class GlassBlurEffect : ShaderEffect
     public static readonly DependencyProperty EdgeProperty = DependencyProperty.Register(
         nameof(Edge), typeof(double), typeof(GlassBlurEffect), new UIPropertyMetadata(2.4, PixelShaderConstantCallback(2)));
 
+    /// <summary>0 = capsule profile (long bars), 1 = dome profile (squarer panels); matches LensEffect.</summary>
+    public static readonly DependencyProperty DomeProperty = DependencyProperty.Register(
+        nameof(Dome), typeof(double), typeof(GlassBlurEffect), new UIPropertyMetadata(0.0, PixelShaderConstantCallback(3)));
+
     public GlassBlurEffect()
     {
         PixelShader = Shader;
@@ -33,7 +37,10 @@ public sealed class GlassBlurEffect : ShaderEffect
         UpdateShaderValue(DirectionProperty);
         UpdateShaderValue(AspectProperty);
         UpdateShaderValue(EdgeProperty);
+        UpdateShaderValue(DomeProperty);
     }
+
+    public double Dome { get => (double)GetValue(DomeProperty); set => SetValue(DomeProperty, value); }
 
     public Brush Input { get => (Brush)GetValue(InputProperty); set => SetValue(InputProperty, value); }
     public Point Direction { get => (Point)GetValue(DirectionProperty); set => SetValue(DirectionProperty, value); }

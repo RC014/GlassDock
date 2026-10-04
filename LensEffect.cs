@@ -26,6 +26,10 @@ public sealed class LensEffect : ShaderEffect
     public static readonly DependencyProperty EdgeProperty = DependencyProperty.Register(
         nameof(Edge), typeof(double), typeof(LensEffect), new UIPropertyMetadata(2.4, PixelShaderConstantCallback(3)));
 
+    /// <summary>0 = capsule lens (long bars), 1 = dome lens (squarer panels).</summary>
+    public static readonly DependencyProperty DomeProperty = DependencyProperty.Register(
+        nameof(Dome), typeof(double), typeof(LensEffect), new UIPropertyMetadata(0.0, PixelShaderConstantCallback(4)));
+
     public LensEffect()
     {
         PixelShader = Shader;
@@ -33,7 +37,10 @@ public sealed class LensEffect : ShaderEffect
         UpdateShaderValue(StrengthProperty);
         UpdateShaderValue(AspectProperty);
         UpdateShaderValue(EdgeProperty);
+        UpdateShaderValue(DomeProperty);
     }
+
+    public double Dome { get => (double)GetValue(DomeProperty); set => SetValue(DomeProperty, value); }
 
     public Brush Input { get => (Brush)GetValue(InputProperty); set => SetValue(InputProperty, value); }
     public double Strength { get => (double)GetValue(StrengthProperty); set => SetValue(StrengthProperty, value); }

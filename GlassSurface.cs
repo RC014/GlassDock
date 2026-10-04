@@ -99,6 +99,8 @@ public sealed class GlassSurface : Grid
         {
             double aspect = ActualWidth / ActualHeight;
             _lens.Aspect = _blurHEffect.Aspect = _blurVEffect.Aspect = aspect;
+            // Long bars get the capsule lens; squarer glass (previews, Quick Settings) the smooth dome lens.
+            _lens.Dome = _blurHEffect.Dome = _blurVEffect.Dome = aspect < 3 ? 1 : 0;
             // blur radius at the centre line (fading to none at the rim), per pass direction, in uv units
             double blurDip = Settings.Current.RefractionBlur * MaxBlurDip;
             _blurHEffect.Direction = new Point(blurDip / Math.Max(1, ActualWidth), 0);
