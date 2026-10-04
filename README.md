@@ -11,7 +11,7 @@ All of them are drawn as glass that refracts what's behind it: the background is
 ## Download
 
 1. Download `GlassDock.exe` from the [latest release](https://github.com/RC014/GlassDock/releases/latest). It includes everything it needs; nothing else has to be installed.
-2. Put it somewhere permanent (for example `C:\Program Files\GlassDock` or a folder in your user profile) and run it.
+2. Put it somewhere permanent, for example `%LOCALAPPDATA%\Programs\GlassDock`, and run it. Avoid OneDrive (or other synced) folders: at sign-in Windows may try to start GlassDock before OneDrive is ready, and the start fails.
 3. Windows may show "Windows protected your PC" because the app isn't code-signed: click **More info** › **Run anyway**.
 
 On first run GlassDock imports your current Windows taskbar pins, hides the Windows taskbar and adds itself to startup. All of this can be changed in its settings.

@@ -47,6 +47,8 @@ public partial class App : Application
         Settings.Load();
         // On a new computer GlassDock starts with Windows by default (it can be turned off in settings).
         if (Settings.IsFirstRun) StartsWithWindows = true;
+        // If the startup entry points at a file that's gone (the exe was moved or deleted), re-register this one.
+        else if (StartupTarget is { } target && !File.Exists(target)) StartsWithWindows = true;
         Theme.Refresh();
         Pins.ImportTaskbarPinsOnce();
 
@@ -157,6 +159,16 @@ public partial class App : Application
         }
         catch (Exception ex) { Log(ex); }
         if (Settings.Current.HideWindowsTaskbar) TaskbarRescue.Restore();
+    }
+
+    /// <summary>The exe the "start with Windows" entry points at, or null if there is no entry.</summary>
+    private static string? StartupTarget
+    {
+        get
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+            return (key?.GetValue("GlassDock") as string)?.Trim().Trim('"');
+        }
     }
 
     internal static bool StartsWithWindows
