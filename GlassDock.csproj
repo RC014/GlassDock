@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>GlassDock</AssemblyName>
+    <RootNamespace>GlassDock</RootNamespace>
+    <Version>1.0.0</Version>
+    <NoWarn>$(NoWarn);CA1416;SYSLIB1054;CS8981</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ManagedShell" Version="0.0.374" />
+    <!-- Compiled from Shaders\*.fx with: fxc /T ps_2_0 /E main /O3 /Fo Shaders\X.ps Shaders\X.fx (Windows SDK) -->
+    <Resource Include="Shaders\Lens.ps" />
+    <Resource Include="Shaders\Blur.ps" />
+  </ItemGroup>
+
+</Project>
+
+

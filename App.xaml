@@ -1,0 +1,98 @@
+<Application x:Class="GlassDock.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+        <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI</FontFamily>
+
+        <!-- Placeholders; Theme.Apply() replaces these at startup and on theme change. -->
+        <SolidColorBrush x:Key="Fg" Color="White" />
+        <SolidColorBrush x:Key="FgDim" Color="#B8FFFFFF" />
+        <SolidColorBrush x:Key="Indicator" Color="White" />
+        <SolidColorBrush x:Key="HoverFill" Color="#26FFFFFF" />
+        <SolidColorBrush x:Key="MenuBg" Color="#F026262A" />
+        <SolidColorBrush x:Key="MenuStroke" Color="#30FFFFFF" />
+        <SolidColorBrush x:Key="Divider" Color="#40FFFFFF" />
+        <SolidColorBrush x:Key="GlassFill" Color="#14FFFFFF" />
+        <SolidColorBrush x:Key="GlassRim" Color="#60FFFFFF" />
+        <SolidColorBrush x:Key="GlassSheen" Color="#10FFFFFF" />
+
+        <!-- Small round-cornered hover button used in the status bar. -->
+        <Style x:Key="BarButton" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Margin" Value="1,6" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource HoverFill}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Glass-ish context menus -->
+        <Style TargetType="ContextMenu">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="HasDropShadow" Value="True" />
+            <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Margin="10" Padding="5" CornerRadius="12"
+                                Background="{DynamicResource MenuBg}" BorderBrush="{DynamicResource MenuStroke}" BorderThickness="1">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.35" />
+                            </Border.Effect>
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource Fg}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Bd" CornerRadius="7" Padding="10,6" MinWidth="190" Background="Transparent">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="Check" Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                           VerticalAlignment="Center" Visibility="Collapsed" />
+                                <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF3B82F6" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Separator">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Margin="8,4" Background="{DynamicResource Divider}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,37 @@
+<local:GlassWindow x:Class="GlassDock.MediaWindow"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:local="clr-namespace:GlassDock"
+                   Title="GlassDock Media">
+    <!-- RootGrid.Width is set from the MediaPlayerWidth setting; the title column takes whatever is left. -->
+    <Grid x:Name="RootGrid" MouseRightButtonUp="Bar_MouseRightButtonUp">
+        <local:GlassSurface />
+
+        <DockPanel Margin="9,0,8,0" VerticalAlignment="Center" LastChildFill="True">
+            <Border DockPanel.Dock="Right" Style="{StaticResource BarButton}" Padding="7,0" MouseLeftButtonUp="Next_Click" ToolTip="Next">
+                <TextBlock Text="&#xE893;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource Fg}" VerticalAlignment="Center" />
+            </Border>
+            <Border DockPanel.Dock="Right" Style="{StaticResource BarButton}" Padding="7,0" MouseLeftButtonUp="PlayPause_Click">
+                <TextBlock x:Name="PlayGlyph" Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="17" Foreground="{DynamicResource Fg}" VerticalAlignment="Center" />
+            </Border>
+            <Border DockPanel.Dock="Right" Style="{StaticResource BarButton}" Padding="7,0" MouseLeftButtonUp="Previous_Click" ToolTip="Previous">
+                <TextBlock Text="&#xE892;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource Fg}" VerticalAlignment="Center" />
+            </Border>
+
+            <!-- Album art + title: click brings the player app to the front -->
+            <DockPanel x:Name="InfoPanel" Background="Transparent" Cursor="Hand" MouseLeftButtonUp="Info_Click">
+                <Border x:Name="ArtFrame" DockPanel.Dock="Left" CornerRadius="9" ClipToBounds="True" Background="{DynamicResource HoverFill}">
+                    <Grid>
+                        <TextBlock Text="&#xE8D6;" FontFamily="{StaticResource IconFont}" FontSize="18" Foreground="{DynamicResource FgDim}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Image x:Name="Art" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Grid>
+                </Border>
+                <StackPanel x:Name="TextPanel" VerticalAlignment="Center" Margin="10,0,6,0">
+                    <TextBlock x:Name="TitleText" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Fg}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ArtistText" FontSize="11.5" Foreground="{DynamicResource FgDim}" TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </DockPanel>
+    </Grid>
+</local:GlassWindow>
