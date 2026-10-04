@@ -75,7 +75,7 @@ internal sealed class Settings
             if (File.Exists(FilePath))
                 Current = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), Json) ?? new Settings();
         }
-        catch { Current = new Settings(); }
+        catch (Exception ex) { App.Log(ex); Current = new Settings(); }
         Current.IconSize = Math.Clamp(Current.IconSize, 24, 96);
         Current.Magnification = Math.Clamp(Current.Magnification, 1, 2.5);
         Current.MediaPlayerWidth = Math.Clamp(Current.MediaPlayerWidth, 200, 600);
@@ -93,6 +93,6 @@ internal sealed class Settings
             Directory.CreateDirectory(Folder);
             File.WriteAllText(FilePath, JsonSerializer.Serialize(Current, Json));
         }
-        catch { }
+        catch (Exception ex) { App.Log(ex); }
     }
 }

@@ -67,22 +67,53 @@ internal sealed class SettingsWindow : Window
         Check("Show seconds", () => _s.ShowSeconds, v => _s.ShowSeconds = v);
         Check("Show date", () => _s.ShowDate, v => _s.ShowDate = v);
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 14) };
+        // Buttons stay pinned at the bottom (always visible); only the settings above them scroll.
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(22, 10, 22, 14) };
         buttons.Children.Add(Button("Open settings file", () =>
             Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Settings.FilePath}\"") { UseShellExecute = true })));
-        buttons.Children.Add(Button("Cancel", Close));
-        var save = Button("Save & apply", () => { _saved = true; Settings.Save(); Close(); App.Restart(); });
+        buttons.Children.Add(Button("Cancel", () => { _dirty = false; Close(); }));
+        var save = Button("Save & apply", SaveAndApply);
         save.Background = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6));
         save.Foreground = Brushes.White;
         buttons.Children.Add(save);
-        _rows.Children.Add(buttons);
 
-        Content = new ScrollViewer { Content = _rows, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 760 };
-        // Closing without saving throws away the edits (they were made on the live settings object).
-        Closing += (_, _) => { if (!_saved) Settings.Load(); };
+        var layout = new DockPanel();
+        DockPanel.SetDock(buttons, Dock.Bottom);
+        layout.Children.Add(buttons);
+        layout.Children.Add(new ScrollViewer { Content = _rows, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        Content = layout;
+        MaxHeight = SystemParameters.WorkArea.Height - 40;
+
+        // Closing with unsaved changes asks first; otherwise the edits (made on the live settings object) are dropped.
+        Closing += (_, e) =>
+        {
+            if (_saved) return;
+            if (_dirty)
+            {
+                var answer = MessageBox.Show(this, "Save your changes to GlassDock's settings?", "GlassDock Settings",
+                    MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                if (answer == MessageBoxResult.Cancel) { e.Cancel = true; return; }
+                if (answer == MessageBoxResult.Yes)
+                {
+                    _saved = true;
+                    Settings.Save();
+                    Dispatcher.BeginInvoke(App.Restart);
+                    return;
+                }
+            }
+            Settings.Load();
+        };
     }
 
-    private bool _saved;
+    private bool _saved, _dirty;
+
+    private void SaveAndApply()
+    {
+        _saved = true;
+        Settings.Save();
+        Close();
+        App.Restart();
+    }
 
     private void Section(string title)
     {
@@ -108,7 +139,7 @@ internal sealed class SettingsWindow : Window
             SmallChange = step, LargeChange = Math.Max(step, (max - min) / 10),
         };
         void Show() => value.Text = percent ? (slider.Value * 100).ToString("0") + "%" : slider.Value.ToString(format);
-        slider.ValueChanged += (_, _) => { set(slider.Value); Show(); };
+        slider.ValueChanged += (_, _) => { set(slider.Value); Show(); _dirty = true; };
         Show();
 
         _rows.Children.Add(head);
@@ -119,8 +150,8 @@ internal sealed class SettingsWindow : Window
     {
         var cb = new CheckBox { Content = label, IsChecked = get(), Margin = new Thickness(0, 6, 0, 0) };
         cb.SetResourceReference(ForegroundProperty, "Fg");
-        cb.Checked += (_, _) => set(true);
-        cb.Unchecked += (_, _) => set(false);
+        cb.Checked += (_, _) => { set(true); _dirty = true; };
+        cb.Unchecked += (_, _) => { set(false); _dirty = true; };
         _rows.Children.Add(cb);
     }
 
