@@ -61,6 +61,12 @@ internal static class Pins
         else
         {
             item.ExePath = path;
+            if (IsExplorer(path))
+            {
+                // explorer.exe pinned as a file: give it File Explorer's identity so it matches its windows.
+                item.AppUserModelId = ExplorerAumid;
+                item.Name = "File Explorer";
+            }
         }
 
         if (string.IsNullOrEmpty(item.Name))
@@ -90,7 +96,8 @@ internal static class Pins
         {
             item.ExePath = w.WinFileName;
             item.AppUserModelId = string.IsNullOrEmpty(w.AppUserModelID) ? null : w.AppUserModelID;
-            item.Name = !string.IsNullOrWhiteSpace(w.WinFileDescription) ? w.WinFileDescription
+            item.Name = IsExplorer(w.WinFileName) ? "File Explorer" // its file description says "Windows Explorer"
+                      : !string.IsNullOrWhiteSpace(w.WinFileDescription) ? w.WinFileDescription
                       : !string.IsNullOrEmpty(w.WinFileName) ? Path.GetFileNameWithoutExtension(w.WinFileName) : w.Title;
             item.Icon = (!string.IsNullOrEmpty(w.WinFileName) ? Shell.GetIcon(w.WinFileName, IconPx) : null) ?? w.Icon;
         }
@@ -101,17 +108,25 @@ internal static class Pins
     {
         if (pin.AppUserModelId != null && string.Equals(pin.AppUserModelId, w.AppUserModelID, StringComparison.OrdinalIgnoreCase))
             return true;
-        return pin.ExePath != null && !w.IsUWP && string.Equals(pin.ExePath, w.WinFileName, StringComparison.OrdinalIgnoreCase);
+        // Same exe, even for windows Windows reports as modern/immersive apps (Windows 11's File Explorer is one).
+        return pin.ExePath != null && string.Equals(pin.ExePath, w.WinFileName, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>The path to store in settings when pinning a running app.</summary>
     public static string? PinPathFor(DockItem running)
     {
-        if (running.ExePath == null && running.AppUserModelId != null) return AppsFolder + running.AppUserModelId;
-        if (running.ExePath != null && running.ExePath.EndsWith("ApplicationFrameHost.exe", StringComparison.OrdinalIgnoreCase) && running.AppUserModelId != null)
+        // Prefer the app's Windows identity when it has one Windows knows (Start menu entry): that gives the
+        // proper name and icon and matches its windows reliably. Otherwise pin the exe.
+        if (running.AppUserModelId != null && Shell.GetDisplayName(AppsFolder + running.AppUserModelId) != null)
             return AppsFolder + running.AppUserModelId;
+        if (running.ExePath != null && IsExplorer(running.ExePath)) return AppsFolder + ExplorerAumid;
         return running.ExePath;
     }
+
+    private const string ExplorerAumid = "Microsoft.Windows.Explorer";
+
+    private static bool IsExplorer(string? exe) =>
+        exe != null && string.Equals(exe, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), StringComparison.OrdinalIgnoreCase);
 
     public static void Launch(DockItem item)
     {
