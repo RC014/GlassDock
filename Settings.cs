@@ -53,6 +53,20 @@ internal sealed class Settings
     public bool ShowMediaTitle { get; set; } = false;
     public bool ShowMediaArtist { get; set; } = false;
 
+    /// <summary>The Start button opens GlassDock's glass Start menu instead of Windows' one.</summary>
+    public bool GlassStartMenu { get; set; } = true;
+    /// <summary>A lone press of the Windows key opens the glass Start menu (Windows-key shortcuts keep working).</summary>
+    public bool WindowsKeyOpensGlassStart { get; set; } = true;
+    /// <summary>The volume keys show GlassDock's glass indicator instead of Windows' pop-up.</summary>
+    public bool GlassVolumeIndicator { get; set; } = true;
+    /// <summary>Apps pinned in the glass Start menu (ids in the shell's Applications folder).</summary>
+    public List<string> StartPins { get; set; } = new()
+    {
+        "Microsoft.Windows.Explorer",
+        "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel",
+        "Microsoft.WindowsStore_8wekyb3d8bbwe!App",
+    };
+
     /// <summary>Internal: set once the user's existing taskbar pins were imported.</summary>
     public bool ImportedTaskbarPins { get; set; }
 
@@ -76,6 +90,7 @@ internal sealed class Settings
                 Current = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), Json) ?? new Settings();
         }
         catch (Exception ex) { App.Log(ex); Current = new Settings(); }
+        Current.StartPins ??= new();
         Current.IconSize = Math.Clamp(Current.IconSize, 24, 96);
         Current.Magnification = Math.Clamp(Current.Magnification, 1, 2.5);
         Current.MediaPlayerWidth = Math.Clamp(Current.MediaPlayerWidth, 200, 600);

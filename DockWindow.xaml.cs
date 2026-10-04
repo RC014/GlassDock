@@ -219,7 +219,8 @@ public partial class DockWindow : GlassWindow
     private void Start_Click(object sender, MouseButtonEventArgs e)
     {
         HideLabel();
-        Native.SendWinCombo();
+        if (Settings.Current.GlassStartMenu) App.ToggleStartMenu();
+        else Native.SendWinCombo();
     }
 
     /// <summary>Right-clicking the Start button opens the GlassDock menu (Task Manager, settings, quit...).</summary>
@@ -421,6 +422,11 @@ public partial class DockWindow : GlassWindow
         foreach (var f in files.Where(f => f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)))
             Pin(f);
     }
+
+    /// <summary>Adds an app to the dock (the Start menu's "Keep in Dock").</summary>
+    internal void KeepInDock(string path) => Pin(path);
+
+    internal bool IsInDock(string path) => _pinned.Any(p => string.Equals(p.PinPath, path, StringComparison.OrdinalIgnoreCase));
 
     private void Pin(string path, int index = -1)
     {

@@ -61,7 +61,21 @@ The bars stay hidden and float over your windows; they never take screen space a
 - **Right-click** an app for its window list, New window, Keep in Dock / Remove from Dock, Show in File Explorer, Close and GlassDock settings.
 - **Drag** any icon to move it; the other icons slide aside to show where it will land. Drag a running app onto the pinned side (left of the divider) to pin it there. Drag a pinned icon up off the dock and let go to remove it. Drop an `.exe` or `.lnk` file onto the dock to pin it.
 - A dot under an icon means the app is running, a wide bar means it's the active window, and an orange dot means the app wants your attention.
-- The **Windows button** on the left opens Start; right-click it for the GlassDock menu.
+- The **Windows button** on the left opens the Start menu (see below); right-click it for the GlassDock menu.
+
+## Start menu
+
+- The **Windows button** on the dock and a **press of the Windows key** open GlassDock's glass Start menu. Windows-key shortcuts (Win+E, Win+R, Win+Shift+S, Win+L…) keep working as usual: only a press of the Windows key on its own opens the menu.
+- Start typing to **search** your apps (by name, word or initials, e.g. "vsc"); use the arrow keys and Enter to open one.
+- **Pinned** apps at the top (File Explorer, Settings and Microsoft Store to begin with): right-click any app for Pin to Start / Unpin from Start, Move to front, Keep in Dock and Uninstall.
+- **Recent** files you opened, with how long ago.
+- **All apps** lists everything in Windows' Start list, including Store apps.
+- Your account (click it for account settings) and the **power** button: Lock, Sign out, Sleep, Shut down, Restart, and **Windows Start menu** to open Windows' own one.
+- It closes when you click elsewhere, press Esc or open something.
+
+## Volume
+
+The volume keys change the volume in 2% steps and show GlassDock's glass volume indicator near the bottom of the screen instead of Windows' pop-up. Scrolling on the status bar shows it too.
 
 ## Media player
 
@@ -106,6 +120,10 @@ Menus close by themselves when you move the cursor away from them.
 | `ReserveScreenSpace` | false | With `AutoHide` off: maximised windows stop above the dock |
 | `HideWindowsTaskbar` | true | Hide the original Windows taskbar while GlassDock runs |
 | `ShowSeconds`, `ShowDate` | false, true | Clock options |
+| `GlassStartMenu` | true | The Windows button opens the glass Start menu (off: Windows' Start) |
+| `WindowsKeyOpensGlassStart` | true | A press of the Windows key on its own opens the glass Start menu |
+| `GlassVolumeIndicator` | true | Volume keys show the glass indicator instead of Windows' pop-up |
+| `StartPins` | Explorer, Settings, Store | Apps pinned in the Start menu (`AppID`s from the shell's Applications folder) |
 | `Pinned` | your taskbar pins | Pinned apps: `.lnk` / `.exe` paths or `shell:AppsFolder\<AppID>` entries |
 
 **Screenshots:** with refraction on, GlassDock reads the screen behind the bubbles, so the bubbles exclude themselves from screen capture to avoid seeing themselves. That means they don't appear in screenshots or screen recordings. Turn refraction off if you need them to.
@@ -126,7 +144,7 @@ GlassDock.exe --restore
 ## Development
 
 - The glass shaders in `Shaders\` are precompiled (`.ps`). After editing a `.fx` file, recompile it with `fxc` from the Windows SDK, e.g. `fxc /T ps_2_0 /E main /O3 /Fo Shaders\Lens.ps Shaders\Lens.fx`.
-- Since the bars don't show up in screenshots while refraction is on, setting the environment variable `GLASSDOCK_DUMP=<path prefix>` makes GlassDock render each visible bar to `<prefix>_<bar>_<n>.png` once a second for a few seconds after start-up.
+- Since the bars don't show up in screenshots while refraction is on, setting the environment variable `GLASSDOCK_DUMP=<path prefix>` makes GlassDock render each visible bar, Quick Settings, the Start menu and the volume indicator to `<prefix>_<name>_<n>.png` once a second for a few seconds after start-up.
 
 ## Notes
 

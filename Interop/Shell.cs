@@ -88,6 +88,58 @@ internal static class Shell
         return src;
     }
 
+    // ---- Start menu apps (the shell's Applications folder, which Windows' own Start list shows) ----
+
+    /// <summary>Every app in Windows' Start list (desktop and Store apps): display name and the id to open it with
+    /// ("shell:AppsFolder\&lt;id&gt;").</summary>
+    public static List<(string Name, string Id)> EnumerateStartApps()
+    {
+        var apps = new List<(string, string)>();
+        try
+        {
+            if (SHGetKnownFolderItem(FOLDERID_AppsFolder, 0, IntPtr.Zero, typeof(IShellItem).GUID, out IShellItem folder) != 0) return apps;
+            Guid bhid = BHID_EnumItems, iid = typeof(IEnumShellItems).GUID;
+            folder.BindToHandler(IntPtr.Zero, ref bhid, ref iid, out IntPtr enumPtr);
+            var items = (IEnumShellItems)Marshal.GetObjectForIUnknown(enumPtr);
+            Marshal.Release(enumPtr);
+            while (items.Next(1, out IShellItem item, out uint fetched) == 0 && fetched == 1)
+            {
+                try
+                {
+                    item.GetDisplayName(SIGDN_NORMALDISPLAY, out IntPtr namePtr);
+                    item.GetDisplayName(SIGDN_PARENTRELATIVEPARSING, out IntPtr idPtr);
+                    string? name = Marshal.PtrToStringUni(namePtr), id = Marshal.PtrToStringUni(idPtr);
+                    Marshal.FreeCoTaskMem(namePtr);
+                    Marshal.FreeCoTaskMem(idPtr);
+                    if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(id)) apps.Add((name!, id!));
+                }
+                catch { }
+                finally { Marshal.ReleaseComObject(item); }
+            }
+            Marshal.ReleaseComObject(items);
+            Marshal.ReleaseComObject(folder);
+        }
+        catch (Exception ex) { App.Log(ex); }
+        return apps;
+    }
+
+    private static readonly Guid FOLDERID_AppsFolder = new("1e87508d-89c2-42f0-8a7e-645a0f50ca58");
+    private static readonly Guid BHID_EnumItems = new("94f60519-2850-4924-aa5a-d15e84868039");
+    private const uint SIGDN_PARENTRELATIVEPARSING = 0x80018001;
+
+    [DllImport("shell32.dll")]
+    private static extern int SHGetKnownFolderItem([MarshalAs(UnmanagedType.LPStruct)] Guid rfid, int flags, IntPtr token,
+        [MarshalAs(UnmanagedType.LPStruct)] Guid riid, out IShellItem item);
+
+    [ComImport, Guid("70629033-e363-4a28-a567-0db78006e6d7"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IEnumShellItems
+    {
+        [PreserveSig] int Next(uint celt, out IShellItem item, out uint fetched);
+        void Skip(uint celt);
+        void Reset();
+        void Clone(out IEnumShellItems clone);
+    }
+
     // ---- .lnk resolution ----
     public sealed record LinkInfo(string? TargetPath, string? Arguments, string? AppUserModelId);
 

@@ -98,6 +98,13 @@ public partial class App : Application
                     if (w is { IsVisible: true }) DumpWindow(w, $"{dumpPrefix}_{name}_{n}.png");
                 // and the Quick Settings panel (opened for the purpose) from the second second on
                 if (n >= 2 && Status != null) DumpWindow(Status.OpenQuickSettingsForDump(), $"{dumpPrefix}_quicksettings_{n}.png");
+                // the Start menu and the volume indicator from the third
+                if (n >= 3)
+                {
+                    DumpWindow((_startMenu ??= new StartMenuWindow()).OpenForDump(), $"{dumpPrefix}_start_{n}.png");
+                    ShowVolumeOsd();
+                    DumpWindow(_volumeOsd!, $"{dumpPrefix}_volume_{n}.png");
+                }
             };
             t.Start();
         }
@@ -112,7 +119,7 @@ public partial class App : Application
             var media = Media;
             bool InDockZone(int x) => dock.GlassSpanContains(x, dockPad) || (media is { CanShow: true } && media.GlassSpanContains(x, dockPad));
             var dockGroup = media != null ? new GlassWindow[] { dock, media } : new GlassWindow[] { dock };
-            _dockHide = new AutoHide(dockGroup, p => InDockZone(p.X), () => dock.HasOpenMenu || dock.IsDragging || dock.IsPreviewOpen);
+            _dockHide = new AutoHide(dockGroup, p => InDockZone(p.X), () => dock.HasOpenMenu || dock.IsDragging || dock.IsPreviewOpen || IsStartMenuOpen);
             _statusHide = new AutoHide(new GlassWindow[] { status },
                 p => p.X >= Native.GetSystemMetrics(Native.SM_CXSCREEN) / 2 && !InDockZone(p.X),
                 () => status.HasOpenMenu || status.IsFlyoutOpen || status.IsQuickSettingsOpen);
@@ -129,9 +136,37 @@ public partial class App : Application
         // Started by the installer: keep the bars up a few seconds so it's clear GlassDock is running.
         if (e.Args.Contains("--welcome", StringComparer.OrdinalIgnoreCase)) RevealBars(TimeSpan.FromSeconds(5));
         ListenForShowRequests();
+
+        KeyboardHook.WindowsKeyPressed += () => { if (Settings.Current.WindowsKeyOpensGlassStart) ToggleStartMenu(); };
+        KeyboardHook.VolumeChanged += ShowVolumeOsd;
+        if (Settings.Current.WindowsKeyOpensGlassStart || Settings.Current.GlassVolumeIndicator) KeyboardHook.Start();
     }
 
     private static AutoHide? _dockHide, _statusHide;
+    private static StartMenuWindow? _startMenu;
+    private static VolumeOsdWindow? _volumeOsd;
+
+    internal static bool IsStartMenuOpen => _startMenu is { IsVisible: true };
+
+    /// <summary>Opens GlassDock's Start menu (or closes it if open), showing the dock under it.</summary>
+    internal static void ToggleStartMenu()
+    {
+        try
+        {
+            _startMenu ??= new StartMenuWindow();
+            _startMenu.Toggle();
+            if (_startMenu.IsVisible) _dockHide?.Reveal(TimeSpan.FromSeconds(0.5));
+        }
+        catch (Exception ex) { Log(ex); }
+    }
+
+    /// <summary>Shows the glass volume indicator with the current level (volume keys, scrolling on the status bar).</summary>
+    internal static void ShowVolumeOsd()
+    {
+        if (!Settings.Current.GlassVolumeIndicator) return;
+        try { (_volumeOsd ??= new VolumeOsdWindow()).ShowLevel(); }
+        catch (Exception ex) { Log(ex); }
+    }
 
     private const string ShowBarsEventName = "GlassDock.ShowBars";
 
@@ -189,6 +224,7 @@ public partial class App : Application
     {
         if (_cleanedUp) return;
         _cleanedUp = true;
+        KeyboardHook.Stop();
         try { Dock?.ReleaseScreenSpace(); } catch { }
         try
         {

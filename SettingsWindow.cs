@@ -63,6 +63,11 @@ internal sealed class SettingsWindow : Window
         Check("Hide the Windows taskbar", () => _s.HideWindowsTaskbar, v => _s.HideWindowsTaskbar = v);
         Check("Start with Windows", () => App.StartsWithWindows, v => App.StartsWithWindows = v);
 
+        Section("Start and volume");
+        Check("Start button opens the glass Start menu", () => _s.GlassStartMenu, v => _s.GlassStartMenu = v);
+        Check("Windows key opens the glass Start menu", () => _s.WindowsKeyOpensGlassStart, v => _s.WindowsKeyOpensGlassStart = v);
+        Check("Glass volume indicator for the volume keys", () => _s.GlassVolumeIndicator, v => _s.GlassVolumeIndicator = v);
+
         Section("Clock");
         Check("Show seconds", () => _s.ShowSeconds, v => _s.ShowSeconds = v);
         Check("Show date", () => _s.ShowDate, v => _s.ShowDate = v);

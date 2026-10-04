@@ -265,6 +265,7 @@ public partial class StatusWindow : GlassWindow
     private void System_MouseWheel(object sender, MouseWheelEventArgs e)
     {
         Audio.Adjust(e.Delta > 0 ? 0.02f : -0.02f);
+        App.ShowVolumeOsd();
         UpdateVolume();
     }
 

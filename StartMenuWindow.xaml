@@ -1,0 +1,199 @@
+<Window x:Class="GlassDock.StartMenuWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:GlassDock"
+        Title="GlassDock Start" WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        Width="640" Height="700" UseLayoutRounding="True"
+        Background="{DynamicResource MenuBg}" FontFamily="{StaticResource UiFont}">
+    <Window.Resources>
+        <CornerRadius x:Key="Radius">8</CornerRadius>
+
+        <Style x:Key="Header" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Fg}" />
+            <Setter Property="Margin" Value="8,0,0,10" />
+        </Style>
+
+        <!-- hoverable tile / row -->
+        <Style x:Key="Hover" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource HoverFill}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- pinned app tile -->
+        <DataTemplate x:Key="PinnedTile">
+            <Border Style="{StaticResource Hover}" Width="96" Height="86" Margin="2"
+                    MouseLeftButtonUp="App_Click" MouseRightButtonUp="App_RightClick">
+                <StackPanel VerticalAlignment="Center">
+                    <Image Source="{Binding Icon}" Width="34" Height="34" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Fg}" FontSize="12" Margin="4,8,4,0"
+                               TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- app row (all apps, search results) -->
+        <DataTemplate x:Key="AppRow">
+            <Border Style="{StaticResource Hover}" Padding="10,6" MouseLeftButtonUp="App_Click" MouseRightButtonUp="App_RightClick">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="{Binding Icon}" Width="28" Height="28" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Fg}" FontSize="13" Margin="12,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- recent file -->
+        <DataTemplate x:Key="RecentRow">
+            <Border Style="{StaticResource Hover}" Padding="10,8" Margin="2" MouseLeftButtonUp="Recent_Click">
+                <DockPanel>
+                    <Image Source="{Binding Icon}" Width="30" Height="30" DockPanel.Dock="Left" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Fg}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Ago}" Foreground="{DynamicResource FgDim}" FontSize="11.5" Margin="0,2,0,0" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- list without selection chrome (the rows draw their own hover) -->
+        <Style x:Key="PlainList" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0,1" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="Sel" CornerRadius="6" Background="Transparent">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Sel" Property="Background" Value="{DynamicResource HoverFill}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <local:GlassSurface x:Name="Glass" />
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- search -->
+            <Border Margin="28,24,28,12" Padding="14,0" Height="38" CornerRadius="19"
+                    Background="{DynamicResource HoverFill}" BorderBrush="{DynamicResource MenuStroke}" BorderThickness="1">
+                <DockPanel>
+                    <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource FgDim}"
+                               VerticalAlignment="Center" DockPanel.Dock="Left" />
+                    <Grid Margin="10,0,0,0">
+                        <TextBlock x:Name="SearchHint" Text="Search for apps" Foreground="{DynamicResource FgDim}" FontSize="13.5"
+                                   VerticalAlignment="Center" IsHitTestVisible="False" />
+                        <TextBox x:Name="SearchBox" Background="Transparent" BorderThickness="0" FontSize="13.5"
+                                 Foreground="{DynamicResource Fg}" CaretBrush="{DynamicResource Fg}" VerticalAlignment="Center"
+                                 TextChanged="Search_TextChanged" PreviewKeyDown="Search_PreviewKeyDown" />
+                    </Grid>
+                </DockPanel>
+            </Border>
+
+            <!-- home: pinned + recent -->
+            <ScrollViewer x:Name="HomeView" Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="36,8,36,8">
+                <StackPanel>
+                    <DockPanel Margin="0,4,0,0">
+                        <Border DockPanel.Dock="Right" Style="{StaticResource Hover}" Padding="10,4" MouseLeftButtonUp="ShowAllApps">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="All apps" Foreground="{DynamicResource Fg}" FontSize="12.5" />
+                                <TextBlock Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="{DynamicResource Fg}"
+                                           Margin="8,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="Pinned" Style="{StaticResource Header}" />
+                    </DockPanel>
+                    <ItemsControl x:Name="PinnedList" ItemTemplate="{StaticResource PinnedTile}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                    <TextBlock x:Name="PinnedEmpty" Text="Right-click an app in All apps and choose Pin to Start." Foreground="{DynamicResource FgDim}"
+                               FontSize="12.5" Margin="8,0,0,0" />
+
+                    <TextBlock Text="Recent" Style="{StaticResource Header}" Margin="8,26,0,10" />
+                    <ItemsControl x:Name="RecentList" ItemTemplate="{StaticResource RecentRow}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                    <TextBlock x:Name="RecentEmpty" Text="Files you open will show up here." Foreground="{DynamicResource FgDim}"
+                               FontSize="12.5" Margin="8,0,0,0" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- all apps -->
+            <DockPanel x:Name="AllView" Grid.Row="1" Margin="36,8,36,8" Visibility="Collapsed">
+                <DockPanel DockPanel.Dock="Top" Margin="0,4,0,8">
+                    <Border DockPanel.Dock="Right" Style="{StaticResource Hover}" Padding="10,4" MouseLeftButtonUp="ShowHome">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE76B;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="{DynamicResource Fg}"
+                                       Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Back" Foreground="{DynamicResource Fg}" FontSize="12.5" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="All apps" Style="{StaticResource Header}" Margin="8,0,0,0" />
+                </DockPanel>
+                <ListBox x:Name="AllList" Style="{StaticResource PlainList}" ItemTemplate="{StaticResource AppRow}" />
+            </DockPanel>
+
+            <!-- search results -->
+            <DockPanel x:Name="SearchView" Grid.Row="1" Margin="36,8,36,8" Visibility="Collapsed">
+                <TextBlock DockPanel.Dock="Top" Text="Best matches" Style="{StaticResource Header}" Margin="8,4,0,8" />
+                <TextBlock x:Name="NoResults" DockPanel.Dock="Top" Text="No apps found." Foreground="{DynamicResource FgDim}" FontSize="12.5"
+                           Margin="8,0,0,0" Visibility="Collapsed" />
+                <ListBox x:Name="ResultsList" Style="{StaticResource PlainList}" ItemTemplate="{StaticResource AppRow}" />
+            </DockPanel>
+
+            <!-- account and power -->
+            <Border Grid.Row="2" BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="40,12,28,12">
+                <DockPanel>
+                    <Border DockPanel.Dock="Right" Style="{StaticResource Hover}" Padding="10" ToolTip="Power" MouseLeftButtonUp="Power_Click">
+                        <TextBlock Text="&#xE7E8;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource Fg}" />
+                    </Border>
+                    <Border Style="{StaticResource Hover}" Padding="8,6" HorizontalAlignment="Left" MouseLeftButtonUp="Account_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Width="32" Height="32">
+                                <Ellipse Fill="{DynamicResource HoverFill}" />
+                                <TextBlock Text="&#xE77B;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="{DynamicResource Fg}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Ellipse x:Name="UserPicture" />
+                            </Grid>
+                            <TextBlock x:Name="UserName" Foreground="{DynamicResource Fg}" FontSize="13" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
