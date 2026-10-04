@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Management;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Threading;
@@ -46,6 +47,9 @@ internal static class WindowsOsd
     private static Kind _lastKind = Kind.Volume;
     private static DateTime _lastShown;
     private static readonly DispatcherTimer _volumeSnapshot = new() { Interval = TimeSpan.FromSeconds(1) };
+    private static DateTime _brightnessChangedAt, _pendingSince;
+    private static ManagementEventWatcher? _brightnessWatcher;
+    private static Dispatcher _ui = null!;
 
     public static void Start()
     {
@@ -61,6 +65,8 @@ internal static class WindowsOsd
         _volumeSnapshot.Start();
         _lastVolume = Audio.Get();
         _ = Task.Run(SystemControls.GetBrightness).ContinueWith(t => _lastBrightness = t.Result, TaskScheduler.Default);
+        _ui = Dispatcher.CurrentDispatcher;
+        StartBrightnessEvents();
     }
 
     public static void Stop()
@@ -69,6 +75,8 @@ internal static class WindowsOsd
         UnhookWinEvent(_hook);
         _hook = IntPtr.Zero;
         _volumeSnapshot.Stop();
+        try { _brightnessWatcher?.Stop(); _brightnessWatcher?.Dispose(); } catch { }
+        _brightnessWatcher = null;
         RestoreWindowsPopup();
     }
 
@@ -132,31 +140,68 @@ internal static class WindowsOsd
         var volume = Audio.Get();
         bool volumeChanged = !Equals(volume, _lastVolume);
         _lastVolume = volume;
-        if (volumeChanged) { Show(Kind.Volume); RefreshBrightnessSnapshot(); return; }
+        if (volumeChanged) { Show(Kind.Volume); return; }
 
+        // Brightness: Windows reports each change (with the new value) as a WMI event, which can arrive just before
+        // or just after its pop-up shows.
+        if ((DateTime.Now - _brightnessChangedAt).TotalSeconds < 1 && _lastBrightness != null)
+        {
+            Show(Kind.Brightness, _lastBrightness);
+            return;
+        }
+        var pending = _pendingSince = DateTime.Now;
+        await Task.Delay(600);
+        if (_pendingSince != pending) return; // the brightness event came and showed it
+
+        _pendingSince = DateTime.MinValue;
+        // No event: fall back to reading the brightness. Nothing changed (e.g. already at 100%)? Repeat whatever
+        // the last presses were about.
         int? brightness = await Task.Run(SystemControls.GetBrightness);
         bool brightnessChanged = brightness != null && brightness != _lastBrightness;
         _lastBrightness = brightness ?? _lastBrightness;
-        // Nothing changed (e.g. already at 100%): repeat whatever the last presses were about.
         var kind = brightnessChanged ? Kind.Brightness
             : (DateTime.Now - _lastShown).TotalSeconds < 3 ? _lastKind : Kind.Volume;
-        Show(kind, brightness);
-        if (kind == Kind.Brightness)
+        Show(kind, _lastBrightness);
+    }
+
+    /// <summary>A brightness change reported by Windows (keys, settings, adaptive brightness...).</summary>
+    private static void OnBrightnessChanged(int value)
+    {
+        _lastBrightness = value;
+        _brightnessChangedAt = DateTime.Now;
+        bool pending = (DateTime.Now - _pendingSince).TotalSeconds < 1;
+        bool showingBrightness = _lastKind == Kind.Brightness && (DateTime.Now - _lastShown).TotalSeconds < 2;
+        // Only together with Windows' pop-up (or while ours shows brightness, so it follows the fade and held keys):
+        // changes Windows doesn't announce (adaptive brightness, our own slider) stay silent, as they do in Windows.
+        if (pending) _pendingSince = DateTime.MinValue;
+        if (pending || showingBrightness) Show(Kind.Brightness, value);
+    }
+
+    private static void StartBrightnessEvents()
+    {
+        try
         {
-            // brightness can still be fading to its new value
-            await Task.Delay(250);
-            if (await Task.Run(SystemControls.GetBrightness) is int later) { _lastBrightness = later; Show(Kind.Brightness, later); }
+            _brightnessWatcher = new ManagementEventWatcher(new ManagementScope(@"root\wmi"), new EventQuery("SELECT * FROM WmiMonitorBrightnessEvent"));
+            _brightnessWatcher.EventArrived += (_, e) =>
+            {
+                try
+                {
+                    int value = Convert.ToInt32(e.NewEvent["Brightness"]);
+                    _ui.BeginInvoke(() => OnBrightnessChanged(value));
+                }
+                catch { }
+            };
+            _brightnessWatcher.Start();
         }
+        catch (Exception ex) { App.Log(ex); } // no brightness control (desktop monitor): nothing to watch
     }
 
     private static void Show(Kind kind, int? brightness = null)
     {
+        if (kind == Kind.Brightness && brightness == null) kind = Kind.Volume;
         _lastKind = kind;
         _lastShown = DateTime.Now;
         if (kind == Kind.Volume) App.ShowVolumeOsd();
-        else if (brightness != null) App.ShowBrightnessOsd(brightness.Value);
+        else App.ShowBrightnessOsd(brightness!.Value);
     }
-
-    private static void RefreshBrightnessSnapshot() =>
-        _ = Task.Run(SystemControls.GetBrightness).ContinueWith(t => { if (t.Result != null) _lastBrightness = t.Result; }, TaskScheduler.Default);
 }
