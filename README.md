@@ -73,9 +73,11 @@ The bars stay hidden and float over your windows; they never take screen space a
 - Your account (click it for account settings) and the **power** button: Lock, Sign out, Sleep, Shut down, Restart, and **Windows Start menu** to open Windows' own one.
 - It closes when you click elsewhere, press Esc or open something.
 
-## Volume
+## Volume and brightness
 
 The volume keys change the volume in 2% steps and show GlassDock's glass volume indicator near the bottom of the screen instead of Windows' pop-up. Scrolling on the status bar shows it too.
+
+Whenever Windows would show its own volume or brightness pop-up anyway (a laptop's Fn keys, brightness keys, other software), GlassDock hides it and shows the glass indicator with the new volume or brightness instead.
 
 ## Media player
 
@@ -122,7 +124,7 @@ Menus close by themselves when you move the cursor away from them.
 | `ShowSeconds`, `ShowDate` | false, true | Clock options |
 | `GlassStartMenu` | true | The Windows button opens the glass Start menu (off: Windows' Start) |
 | `WindowsKeyOpensGlassStart` | true | A press of the Windows key on its own opens the glass Start menu |
-| `GlassVolumeIndicator` | true | Volume keys show the glass indicator instead of Windows' pop-up |
+| `GlassVolumeIndicator` | true | Volume and brightness changes show the glass indicator instead of Windows' pop-up |
 | `StartPins` | Explorer, Settings, Store | Apps pinned in the Start menu (`AppID`s from the shell's Applications folder) |
 | `Pinned` | your taskbar pins | Pinned apps: `.lnk` / `.exe` paths or `shell:AppsFolder\<AppID>` entries |
 

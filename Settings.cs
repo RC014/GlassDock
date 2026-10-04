@@ -57,7 +57,7 @@ internal sealed class Settings
     public bool GlassStartMenu { get; set; } = true;
     /// <summary>A lone press of the Windows key opens the glass Start menu (Windows-key shortcuts keep working).</summary>
     public bool WindowsKeyOpensGlassStart { get; set; } = true;
-    /// <summary>The volume keys show GlassDock's glass indicator instead of Windows' pop-up.</summary>
+    /// <summary>Volume and brightness changes show GlassDock's glass indicator instead of Windows' pop-up.</summary>
     public bool GlassVolumeIndicator { get; set; } = true;
     /// <summary>Apps pinned in the glass Start menu (ids in the shell's Applications folder).</summary>
     public List<string> StartPins { get; set; } = new()

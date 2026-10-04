@@ -102,7 +102,7 @@ public partial class App : Application
                 if (n >= 3)
                 {
                     DumpWindow((_startMenu ??= new StartMenuWindow()).OpenForDump(), $"{dumpPrefix}_start_{n}.png");
-                    ShowVolumeOsd();
+                    if (n % 2 == 0) ShowBrightnessOsd(60); else ShowVolumeOsd();
                     DumpWindow(_volumeOsd!, $"{dumpPrefix}_volume_{n}.png");
                 }
             };
@@ -140,6 +140,7 @@ public partial class App : Application
         KeyboardHook.WindowsKeyPressed += () => { if (Settings.Current.WindowsKeyOpensGlassStart) ToggleStartMenu(); };
         KeyboardHook.VolumeChanged += ShowVolumeOsd;
         if (Settings.Current.WindowsKeyOpensGlassStart || Settings.Current.GlassVolumeIndicator) KeyboardHook.Start();
+        if (Settings.Current.GlassVolumeIndicator) WindowsOsd.Start();
     }
 
     private static AutoHide? _dockHide, _statusHide;
@@ -165,6 +166,14 @@ public partial class App : Application
     {
         if (!Settings.Current.GlassVolumeIndicator) return;
         try { (_volumeOsd ??= new VolumeOsdWindow()).ShowLevel(); }
+        catch (Exception ex) { Log(ex); }
+    }
+
+    /// <summary>Shows the glass indicator with a screen brightness (0–100), in place of Windows' pop-up.</summary>
+    internal static void ShowBrightnessOsd(int percent)
+    {
+        if (!Settings.Current.GlassVolumeIndicator) return;
+        try { (_volumeOsd ??= new VolumeOsdWindow()).ShowBrightness(percent); }
         catch (Exception ex) { Log(ex); }
     }
 
@@ -225,6 +234,7 @@ public partial class App : Application
         if (_cleanedUp) return;
         _cleanedUp = true;
         KeyboardHook.Stop();
+        WindowsOsd.Stop();
         try { Dock?.ReleaseScreenSpace(); } catch { }
         try
         {

@@ -66,7 +66,7 @@ internal sealed class SettingsWindow : Window
         Section("Start and volume");
         Check("Start button opens the glass Start menu", () => _s.GlassStartMenu, v => _s.GlassStartMenu = v);
         Check("Windows key opens the glass Start menu", () => _s.WindowsKeyOpensGlassStart, v => _s.WindowsKeyOpensGlassStart = v);
-        Check("Glass volume indicator for the volume keys", () => _s.GlassVolumeIndicator, v => _s.GlassVolumeIndicator = v);
+        Check("Glass volume and brightness pop-ups instead of Windows' ones", () => _s.GlassVolumeIndicator, v => _s.GlassVolumeIndicator = v);
 
         Section("Clock");
         Check("Show seconds", () => _s.ShowSeconds, v => _s.ShowSeconds = v);

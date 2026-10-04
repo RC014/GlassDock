@@ -1,0 +1,120 @@
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Threading;
+using GlassDock.Interop;
+
+namespace GlassDock;
+
+/// <summary>
+/// Replaces Windows' volume / brightness pop-up with GlassDock's glass one, however it was triggered (keyboard
+/// keys GlassDock didn't catch, a laptop's Fn keys, brightness keys handled by the firmware...). Watches, from
+/// outside, for explorer showing its pop-up window (a small XAML island at the bottom centre of the screen),
+/// hides it straight away and shows the glass indicator with whichever level just changed.
+/// </summary>
+internal static class WindowsOsd
+{
+    private const uint EVENT_OBJECT_SHOW = 0x8002;
+    private const uint WINEVENT_OUTOFCONTEXT = 0, WINEVENT_SKIPOWNPROCESS = 2;
+
+    private delegate void WinEventProc(IntPtr hook, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
+
+    [DllImport("user32.dll")] private static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr mod, WinEventProc proc, uint pid, uint thread, uint flags);
+    [DllImport("user32.dll")] private static extern bool UnhookWinEvent(IntPtr hook);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr h, StringBuilder sb, int max);
+    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr h);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr h, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr mon, ref MONITORINFO info);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO { public int cbSize; public Native.RECT rcMonitor, rcWork; public uint dwFlags; }
+
+    private enum Kind { Volume, Brightness }
+
+    private static IntPtr _hook;
+    private static WinEventProc? _proc; // kept alive while hooked
+    private static (float Level, bool Muted)? _lastVolume;
+    private static int? _lastBrightness;
+    private static Kind _lastKind = Kind.Volume;
+    private static DateTime _lastShown;
+    private static readonly DispatcherTimer _volumeSnapshot = new() { Interval = TimeSpan.FromSeconds(1) };
+
+    public static void Start()
+    {
+        if (_hook != IntPtr.Zero) return;
+        _proc = OnShow;
+        _hook = SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, IntPtr.Zero, _proc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+        // Volume changed elsewhere (Quick Settings, the mixer...) shouldn't later look like a key press.
+        _volumeSnapshot.Tick += (_, _) => _lastVolume = Audio.Get();
+        _volumeSnapshot.Start();
+        _lastVolume = Audio.Get();
+        _ = Task.Run(SystemControls.GetBrightness).ContinueWith(t => _lastBrightness = t.Result, TaskScheduler.Default);
+    }
+
+    public static void Stop()
+    {
+        if (_hook == IntPtr.Zero) return;
+        UnhookWinEvent(_hook);
+        _hook = IntPtr.Zero;
+        _volumeSnapshot.Stop();
+    }
+
+    private static void OnShow(IntPtr hook, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
+    {
+        if (idObject != 0 || idChild != 0 || !Settings.Current.GlassVolumeIndicator || !IsWindowsOsd(hwnd)) return;
+        Native.ShowWindow(hwnd, Native.SW_HIDE);
+        _ = ShowGlassAsync();
+    }
+
+    /// <summary>Explorer's pop-up: a small XAML island window, centred near the bottom of its monitor.</summary>
+    private static bool IsWindowsOsd(IntPtr hwnd)
+    {
+        var cls = new StringBuilder(64);
+        GetClassName(hwnd, cls, cls.Capacity);
+        if (cls.ToString() != "XamlExplorerHostIslandWindow") return false;
+        if (!Native.GetWindowRect(hwnd, out var r)) return false;
+        var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(MonitorFromWindow(hwnd, 2 /*MONITOR_DEFAULTTONEAREST*/), ref mi)) return false;
+        double scale = Math.Max(1, GetDpiForWindow(hwnd)) / 96.0;
+        double w = (r.Right - r.Left) / scale, h = (r.Bottom - r.Top) / scale;
+        var m = mi.rcMonitor;
+        double centreOffset = Math.Abs((r.Left + r.Right) / 2.0 - (m.Left + m.Right) / 2.0);
+        return w is > 40 and < 460 && h is > 20 and < 150
+            && centreOffset < (m.Right - m.Left) * 0.1
+            && r.Bottom > m.Top + (m.Bottom - m.Top) * 0.7;
+    }
+
+    private static async Task ShowGlassAsync()
+    {
+        var volume = Audio.Get();
+        bool volumeChanged = !Equals(volume, _lastVolume);
+        _lastVolume = volume;
+        if (volumeChanged) { Show(Kind.Volume); RefreshBrightnessSnapshot(); return; }
+
+        int? brightness = await Task.Run(SystemControls.GetBrightness);
+        bool brightnessChanged = brightness != null && brightness != _lastBrightness;
+        _lastBrightness = brightness ?? _lastBrightness;
+        // Nothing changed (e.g. already at 100%): repeat whatever the last presses were about.
+        var kind = brightnessChanged ? Kind.Brightness
+            : (DateTime.Now - _lastShown).TotalSeconds < 3 ? _lastKind : Kind.Volume;
+        Show(kind, brightness);
+        if (kind == Kind.Brightness)
+        {
+            // brightness can still be fading to its new value
+            await Task.Delay(250);
+            if (await Task.Run(SystemControls.GetBrightness) is int later) { _lastBrightness = later; Show(Kind.Brightness, later); }
+        }
+    }
+
+    private static void Show(Kind kind, int? brightness = null)
+    {
+        _lastKind = kind;
+        _lastShown = DateTime.Now;
+        if (kind == Kind.Volume) App.ShowVolumeOsd();
+        else if (brightness != null) App.ShowBrightnessOsd(brightness.Value);
+    }
+
+    private static void RefreshBrightnessSnapshot() =>
+        _ = Task.Run(SystemControls.GetBrightness).ContinueWith(t => { if (t.Result != null) _lastBrightness = t.Result; }, TaskScheduler.Default);
+}

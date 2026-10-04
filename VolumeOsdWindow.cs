@@ -10,8 +10,8 @@ using GlassDock.Interop;
 namespace GlassDock;
 
 /// <summary>
-/// The glass volume indicator shown for the volume keys (instead of Windows' pop-up): a capsule near the bottom
-/// of the screen with the speaker glyph, a level bar and the percentage. Fades out shortly after the last change.
+/// The glass volume / brightness indicator shown instead of Windows' pop-up: a capsule near the bottom
+/// of the screen with a speaker or sun glyph, a level bar and the percentage. Fades out shortly after the last change.
 /// </summary>
 internal sealed class VolumeOsdWindow : Window
 {
@@ -86,9 +86,17 @@ internal sealed class VolumeOsdWindow : Window
         var v = Audio.Get();
         double level = v?.Level ?? 0;
         bool muted = v == null || v.Value.Muted;
-        _glyph.Text = ((char)(muted || level < 0.01 ? 0xE74F : level < 0.34 ? 0xE993 : level < 0.67 ? 0xE994 : 0xE995)).ToString();
+        Show((char)(muted || level < 0.01 ? 0xE74F : level < 0.34 ? 0xE993 : level < 0.67 ? 0xE994 : 0xE995), level, muted);
+    }
+
+    /// <summary>Shows (or refreshes) the indicator with a screen brightness (0–100).</summary>
+    public void ShowBrightness(int percent) => Show((char)0xE706, percent / 100.0, false);
+
+    private void Show(char glyph, double level, bool dim)
+    {
+        _glyph.Text = glyph.ToString();
         _percent.Text = Math.Round(level * 100).ToString();
-        _fill.Opacity = muted ? 0.4 : 1;
+        _fill.Opacity = dim ? 0.4 : 1;
 
         if (!IsVisible)
         {
