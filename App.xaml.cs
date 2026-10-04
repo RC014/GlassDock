@@ -36,6 +36,13 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Contains("--uninstall", StringComparer.OrdinalIgnoreCase))
+        {
+            Uninstaller.Run();
+            Shutdown();
+            return;
+        }
+
         _mutex = new Mutex(true, "GlassDock.SingleInstance", out bool created);
         if (!created) { Shutdown(); return; }
 

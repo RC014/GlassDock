@@ -12,7 +12,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>GlassDock</AssemblyName>
     <RootNamespace>GlassDock</RootNamespace>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <NoWarn>$(NoWarn);CA1416;SYSLIB1054;CS8981</NoWarn>
   </PropertyGroup>
 
@@ -21,6 +21,14 @@
     <!-- Compiled from Shaders\*.fx with: fxc /T ps_2_0 /E main /O3 /Fo Shaders\X.ps Shaders\X.fx (Windows SDK) -->
     <Resource Include="Shaders\Lens.ps" />
     <Resource Include="Shaders\Blur.ps" />
+  </ItemGroup>
+
+  <!-- The installer is a separate project in Installer\; keep its files out of the app. -->
+  <ItemGroup>
+    <Compile Remove="Installer\**" />
+    <EmbeddedResource Remove="Installer\**" />
+    <None Remove="Installer\**" />
+    <Page Remove="Installer\**" />
   </ItemGroup>
 
 </Project>

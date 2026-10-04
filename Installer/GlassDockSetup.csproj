@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    GlassDockSetup.exe: a small installer that carries the standalone GlassDock.exe inside it.
+    Targets .NET Framework 4.8, which is built into Windows 11, so the installer itself needs no runtime.
+    Build with build-release.ps1 (it publishes GlassDock.exe first and passes the version).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>GlassDockSetup</AssemblyName>
+    <RootNamespace>GlassDockSetup</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+    <Product>GlassDock</Product>
+    <Company>Stefan Mandrescu</Company>
+    <DebugType>none</DebugType>
+    <!-- path of the published GlassDock.exe to embed -->
+    <PayloadPath Condition="'$(PayloadPath)' == ''">..\publish\GlassDock.exe</PayloadPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <EmbeddedResource Include="$(PayloadPath)" LogicalName="GlassDock.exe" />
+  </ItemGroup>
+
+</Project>

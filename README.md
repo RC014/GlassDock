@@ -10,11 +10,15 @@ All of them are drawn as glass that refracts what's behind it: the background is
 
 ## Download
 
-1. Download `GlassDock.exe` from the [latest release](https://github.com/RC014/GlassDock/releases/latest). It includes everything it needs; nothing else has to be installed.
-2. Put it somewhere permanent, for example `%LOCALAPPDATA%\Programs\GlassDock`, and run it. Avoid OneDrive (or other synced) folders: at sign-in Windows may try to start GlassDock before OneDrive is ready, and the start fails.
-3. Windows may show "Windows protected your PC" because the app isn't code-signed: click **More info** › **Run anyway**.
+1. Download **`GlassDockSetup.exe`** from the [latest release](https://github.com/RC014/GlassDock/releases/latest) and run it. Windows may show "Windows protected your PC" because the app isn't code-signed: click **More info** › **Run anyway**.
+2. Click **Install**. GlassDock is installed for your user account in `%LOCALAPPDATA%\Programs\GlassDock` (no administrator rights needed), with a Start menu shortcut and an entry in **Settings › Apps › Installed apps**. It starts automatically when you sign in.
+3. To update, run a newer `GlassDockSetup.exe`; your settings are kept. To uninstall, use **Settings › Apps › Installed apps › GlassDock › Uninstall** (this also brings the Windows taskbar back).
 
 On first run GlassDock imports your current Windows taskbar pins, hides the Windows taskbar and adds itself to startup. All of this can be changed in its settings.
+
+Prefer no installer? Each release also has a standalone `GlassDock.exe` you can run from anywhere. Keep it out of OneDrive (or other synced) folders: at sign-in Windows may try to start GlassDock before OneDrive is ready, and the start fails.
+
+`GlassDockSetup.exe /S` installs or updates silently.
 
 Requires Windows 11 (64-bit).
 
@@ -29,11 +33,13 @@ dotnet build -c Release
 bin\Release\net10.0-windows10.0.22621.0\GlassDock.exe
 ```
 
-To build the standalone single-file `GlassDock.exe` used for releases:
+To build the release files (`publish\GlassDock.exe`, the standalone app, and `publish\GlassDockSetup.exe`, the installer that carries it):
 
 ```
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -o publish
+powershell -ExecutionPolicy Bypass -File build-release.ps1
 ```
+
+The version comes from `<Version>` in `GlassDock.csproj`. The installer project is in `Installer\` and targets .NET Framework 4.8, which is built into Windows.
 
 ## Showing and hiding the bars
 
@@ -112,8 +118,8 @@ GlassDock.exe --restore
 
 ## Uninstalling
 
-1. Untick **Start with Windows** in GlassDock settings, then choose **Quit GlassDock** (this brings the Windows taskbar back).
-2. Delete the GlassDock folder and `%AppData%\GlassDock` (settings and pinned shortcuts).
+- **Installed with GlassDockSetup.exe:** Settings › Apps › Installed apps › GlassDock › Uninstall. This restores the Windows taskbar, removes the shortcuts, the startup entry and the program, and asks whether to delete your settings too.
+- **Standalone GlassDock.exe:** untick **Start with Windows** in GlassDock settings, choose **Quit GlassDock** (this brings the Windows taskbar back), then delete the exe and `%AppData%\GlassDock` (settings and pinned shortcuts).
 
 ## Development
 
