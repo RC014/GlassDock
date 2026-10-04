@@ -194,6 +194,7 @@ public partial class StatusWindow : GlassWindow
     {
         base.CloseTransients();
         OverflowPopup.IsOpen = false;
+        _quickSettings?.Hide();
     }
 
     private IntPtr MouseHookProc(int code, IntPtr wParam, IntPtr lParam)
@@ -237,7 +238,29 @@ public partial class StatusWindow : GlassWindow
 
     // ---------------- system indicators ----------------
 
-    private void System_Click(object sender, MouseButtonEventArgs e) => Native.SendWinCombo(VK_A);
+    // GlassDock's own glass Quick Settings panel, opened from the network/volume/battery button.
+    private QuickSettingsWindow? _quickSettings;
+
+    /// <summary>The Quick Settings panel, opening it first (for the GLASSDOCK_DUMP debug renders).</summary>
+    internal Window OpenQuickSettingsForDump()
+    {
+        if (!IsQuickSettingsOpen) System_Click(this, null!);
+        return _quickSettings!;
+    }
+
+    /// <summary>True while the Quick Settings panel is open (keeps the status bar up).</summary>
+    public bool IsQuickSettingsOpen => _quickSettings?.IsVisible == true;
+
+    private void System_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (_quickSettings == null)
+        {
+            _quickSettings = new QuickSettingsWindow();
+            _quickSettings.IsOverOpener = p => IsOver(SystemButton, p);
+        }
+        var glass = new Rect(Left, Top, ActualWidth, Math.Max(0, ActualHeight - Settings.Current.BottomMargin));
+        _quickSettings.Toggle(this, glass);
+    }
 
     private void System_MouseWheel(object sender, MouseWheelEventArgs e)
     {

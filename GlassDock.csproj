@@ -13,12 +13,14 @@
     <ApplicationIcon>assets\GlassDock.ico</ApplicationIcon>
     <AssemblyName>GlassDock</AssemblyName>
     <RootNamespace>GlassDock</RootNamespace>
-    <Version>1.1.5</Version>
+    <Version>1.2.0</Version>
     <NoWarn>$(NoWarn);CA1416;SYSLIB1054;CS8981</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="ManagedShell" Version="0.0.374" />
+    <!-- WMI, for the Quick Settings brightness slider -->
+    <PackageReference Include="System.Management" Version="10.0.0" />
     <!-- Compiled from Shaders\*.fx with: fxc /T ps_2_0 /E main /O3 /Fo Shaders\X.ps Shaders\X.fx (Windows SDK) -->
     <Resource Include="Shaders\Lens.ps" />
     <Resource Include="Shaders\Blur.ps" />

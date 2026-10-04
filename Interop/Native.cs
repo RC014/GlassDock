@@ -84,6 +84,15 @@ internal static class Native
     private const uint KEYEVENTF_KEYUP = 2;
     public const byte VK_LWIN = 0x5B;
 
+    public const byte VK_CONTROL = 0x11;
+
+    /// <summary>Presses the keys down in order, then releases them in reverse (a key combination).</summary>
+    public static void SendKeys(params byte[] keys)
+    {
+        foreach (var k in keys) keybd_event(k, 0, 0, UIntPtr.Zero);
+        for (int i = keys.Length - 1; i >= 0; i--) keybd_event(keys[i], 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+    }
+
     /// <summary>Presses Win (+ optional key), e.g. Win+A for Quick Settings, Win+N for notifications.</summary>
     public static void SendWinCombo(byte key = 0)
     {

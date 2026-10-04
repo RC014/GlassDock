@@ -72,7 +72,7 @@ The bars stay hidden and float over your windows; they never take screen space a
 ## Status bar
 
 - `^` shows the hidden tray icons. Icons you set to "always show" in Windows Settings › Taskbar › Other system tray icons appear directly in the bar. Clicking or right-clicking a tray icon opens that app's own menu.
-- Network / volume / battery: click to open Quick Settings, scroll to change the volume, middle-click to mute.
+- Network / volume / battery: click to open GlassDock's **Quick Settings** panel, scroll to change the volume, middle-click to mute. The panel (on the same glass as the bars) has the now-playing card, Wi-Fi and Bluetooth (with network/device names; the arrow opens their settings), airplane mode, accessibility, energy saver, live captions, brightness and volume sliders, battery and a shortcut to Windows Settings. Click anywhere outside it to close it.
 - Click the clock to open notifications and the calendar.
 
 ## GlassDock menu

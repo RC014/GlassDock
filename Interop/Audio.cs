@@ -52,6 +52,22 @@ internal static class Audio
         finally { Marshal.ReleaseComObject(ep); }
     }
 
+    /// <summary>Sets the master volume (0..1) and unmutes if above zero.</summary>
+    public static void SetLevel(float level)
+    {
+        var ep = GetEndpoint();
+        if (ep == null) return;
+        try
+        {
+            var ctx = Guid.Empty;
+            float next = Math.Clamp(level, 0f, 1f);
+            ep.SetMasterVolumeLevelScalar(next, ref ctx);
+            if (next > 0) ep.SetMute(false, ref ctx);
+        }
+        catch { }
+        finally { Marshal.ReleaseComObject(ep); }
+    }
+
     public static void ToggleMute()
     {
         var ep = GetEndpoint();

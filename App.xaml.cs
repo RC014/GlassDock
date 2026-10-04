@@ -96,6 +96,8 @@ public partial class App : Application
                 if (++n > 6) { t.Stop(); return; }
                 foreach (var (name, w) in new (string, Window?)[] { ("dock", Dock), ("media", Media), ("status", Status), ("preview", Dock?.PreviewPanel) })
                     if (w is { IsVisible: true }) DumpWindow(w, $"{dumpPrefix}_{name}_{n}.png");
+                // and the Quick Settings panel (opened for the purpose) from the second second on
+                if (n >= 2 && Status != null) DumpWindow(Status.OpenQuickSettingsForDump(), $"{dumpPrefix}_quicksettings_{n}.png");
             };
             t.Start();
         }
@@ -113,7 +115,7 @@ public partial class App : Application
             _dockHide = new AutoHide(dockGroup, p => InDockZone(p.X), () => dock.HasOpenMenu || dock.IsDragging || dock.IsPreviewOpen);
             _statusHide = new AutoHide(new GlassWindow[] { status },
                 p => p.X >= Native.GetSystemMetrics(Native.SM_CXSCREEN) / 2 && !InDockZone(p.X),
-                () => status.HasOpenMenu || status.IsFlyoutOpen);
+                () => status.HasOpenMenu || status.IsFlyoutOpen || status.IsQuickSettingsOpen);
         }
         else
         {
