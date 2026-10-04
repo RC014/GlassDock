@@ -35,6 +35,8 @@ internal sealed class Settings
     public double RefractionEdge { get; set; } = 1;
     /// <summary>0..1 blur seen through the refracting glass; strongest at the centre, none at the rim.</summary>
     public double RefractionBlur { get; set; } = 0.35;
+    /// <summary>How many times a second the glass re-reads the screen behind it (lower = lighter on the CPU/GPU).</summary>
+    public double RefractionFps { get; set; } = 20;
     /// <summary>Hide the bars until the cursor touches the bottom edge of the screen; they float over apps.</summary>
     public bool AutoHide { get; set; } = true;
     /// <summary>Only when AutoHide is off: keep maximised windows above the dock.</summary>
@@ -98,6 +100,7 @@ internal sealed class Settings
         Current.GlassHighlights = Math.Clamp(Current.GlassHighlights, 0, 1);
         Current.RefractionStrength = Math.Clamp(Current.RefractionStrength, 0, 1);
         Current.RefractionBlur = Math.Clamp(Current.RefractionBlur, 0, 1);
+        Current.RefractionFps = Math.Clamp(Math.Round(Current.RefractionFps), 5, 60);
         Current.RefractionEdge = Math.Clamp(Current.RefractionEdge, 0.1, 1);
     }
 

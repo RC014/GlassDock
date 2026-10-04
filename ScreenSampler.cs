@@ -7,32 +7,45 @@ using System.Windows.Threading;
 namespace GlassDock;
 
 /// <summary>
-/// Copies the screen behind each visible glass surface ~20 times a second, so the lens shader has a real image
-/// to refract. The bars exclude themselves from screen capture (see GlassWindow), so they never sample themselves.
+/// Copies the screen behind each visible glass surface RefractionFps times a second (20 by default), so the lens
+/// shader has a real image to refract. The bars exclude themselves from screen capture (see GlassWindow), so they
+/// never sample themselves.
 /// </summary>
 internal static class ScreenSampler
 {
     private static readonly List<GlassSurface> Surfaces = new();
     private static DispatcherTimer? _timer;
+    private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
+    private static double _lastSampleMs = double.NegativeInfinity;
+    private static double IntervalMs => 1000 / Settings.Current.RefractionFps;
 
     public static void Register(GlassSurface surface)
     {
         Surfaces.Add(surface);
         if (_timer != null) return;
-        // Background priority: copying screen pixels is slow (GPU readback), so it must never delay input
-        // handling or the auto-hide checks; ~20 samples a second is plenty for what's behind a bar.
-        _timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(50) };
-        _timer.Tick += (_, _) => Tick();
+        // While glass is on screen, sampling is driven by WPF's frame loop (TrackFrame), so busy UI work can't
+        // starve it. This timer only notices glass appearing while that loop is off; it runs below the
+        // auto-hide checks (Normal priority) so they never wait for a screen copy.
+        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(IntervalMs) };
+        _timer.Tick += (_, _) => TickIfDue();
         _timer.Start();
     }
 
     private static bool _tracking;
 
-    /// <summary>Every frame: keep each visible surface's brush aligned with where its glass is right now.</summary>
+    /// <summary>Every frame: keep each visible surface's brush aligned with where its glass is right now, and take
+    /// a new screen sample when one is due.</summary>
     private static void TrackFrame(object? sender, EventArgs e)
     {
         foreach (var s in Surfaces)
             if (s.NeedsSample) s.UpdateViewbox();
+        TickIfDue();
+    }
+
+    // A few ms of slack so e.g. 30 fps on a 60 Hz screen samples on every other frame, not every third.
+    private static void TickIfDue()
+    {
+        if (Clock.Elapsed.TotalMilliseconds - _lastSampleMs >= IntervalMs - 4) Tick();
     }
 
     /// <summary>Per-frame tracking only while some bar is on screen (it keeps WPF's render loop awake).</summary>
@@ -59,6 +72,7 @@ internal static class ScreenSampler
 
     private static void Tick()
     {
+        _lastSampleMs = Clock.Elapsed.TotalMilliseconds;
         IntPtr screen = IntPtr.Zero;
         bool any = false;
         try
