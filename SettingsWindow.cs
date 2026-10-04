@@ -26,6 +26,7 @@ internal sealed class SettingsWindow : Window
     private SettingsWindow()
     {
         Title = "GlassDock Settings";
+        Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/GlassDock;component/assets/GlassDock.ico"));
         Width = 440;
         SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;

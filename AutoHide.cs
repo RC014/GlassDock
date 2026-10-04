@@ -96,6 +96,14 @@ internal sealed class AutoHide
         else _edgeSince = null;
     }
 
+    /// <summary>Shows the bars and keeps them up for at least <paramref name="duration"/> (e.g. so you can see
+    /// GlassDock started).</summary>
+    public void Reveal(TimeSpan duration)
+    {
+        _lastInside = _clock.Elapsed + duration;
+        SetShown(true);
+    }
+
     private void SetShown(bool shown)
     {
         if (_shown == shown) return;

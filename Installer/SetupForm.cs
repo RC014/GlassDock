@@ -112,12 +112,22 @@ namespace GlassDockSetup
             // Docked Top controls stack in reverse order of adding.
             Controls.Add(buttons);
             Controls.Add(content);
-            ClientSize = new Size(textWidth + content.Padding.Horizontal + LogicalToDeviceUnits(8),
-                                  content.PreferredSize.Height + buttons.PreferredSize.Height + LogicalToDeviceUnits(10));
+            _content = content;
+            _buttons = buttons;
+            ClientSize = new Size(textWidth + content.Padding.Horizontal + LogicalToDeviceUnits(8), 0);
+            FitHeight();
         }
+
+        private bool _done;
+        private FlowLayoutPanel _content, _buttons;
+
+        /// <summary>Fits the window's height to its contents (the width is fixed).</summary>
+        private void FitHeight() =>
+            ClientSize = new Size(ClientSize.Width, _content.PreferredSize.Height + _buttons.PreferredSize.Height + LogicalToDeviceUnits(10));
 
         private async Task InstallAsync()
         {
+            if (_done) { Close(); return; }
             _install.Enabled = _cancel.Enabled = _desktop.Enabled = _launch.Enabled = false;
             _progress.Visible = true;
             bool desktop = _desktop.Checked, launch = _launch.Checked;
@@ -136,19 +146,26 @@ namespace GlassDockSetup
             Finish(launch);
 
             _progress.Visible = false;
-            _body.Text = _isUpdate ? "GlassDock was updated." : "GlassDock is installed.\n\nYou'll find it in the Start menu, and it can be removed from Settings › Apps › Installed apps.";
+            _body.Text = (_isUpdate ? "GlassDock was updated." : "GlassDock is installed.")
+                + (launch
+                    ? "\n\nGlassDock is running. Its bars hide until you need them: push the mouse pointer against the bottom edge of the screen "
+                      + "under the dock to show your apps, or on the right half of the edge to show the clock and tray icons."
+                    : "\n\nYou can start it from the Start menu.")
+                + (_isUpdate ? "" : "\n\nIt can be removed from Settings › Apps › Installed apps.");
             _desktop.Visible = _launch.Visible = false;
             _cancel.Visible = false;
             _install.Text = "Finish";
             _install.Enabled = true;
-            _install.Click += (_, __) => Close();
+            _done = true; // the same button now closes the window (see InstallAsync)
+            FitHeight();
         }
 
         /// <summary>Brings the Windows taskbar back after closing an old copy, then starts the new one (which hides it again).</summary>
         internal static void Finish(bool launch)
         {
             Process.Start(new ProcessStartInfo(InstalledExe, "--restore") { UseShellExecute = false })?.WaitForExit(5000);
-            if (launch) Process.Start(new ProcessStartInfo(InstalledExe) { UseShellExecute = true, WorkingDirectory = InstallFolder });
+            // --welcome keeps the bars up for a few seconds, so it's visible that GlassDock started.
+            if (launch) Process.Start(new ProcessStartInfo(InstalledExe, "--welcome") { UseShellExecute = true, WorkingDirectory = InstallFolder });
         }
 
         internal static void Install(bool desktopShortcut)

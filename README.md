@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" width="128" alt="GlassDock logo"></p>
+
 # GlassDock
 
 A glass replacement for the Windows 11 taskbar. Instead of one bar across the whole screen, you get:

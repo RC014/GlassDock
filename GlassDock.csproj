@@ -10,9 +10,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>assets\GlassDock.ico</ApplicationIcon>
     <AssemblyName>GlassDock</AssemblyName>
     <RootNamespace>GlassDock</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <NoWarn>$(NoWarn);CA1416;SYSLIB1054;CS8981</NoWarn>
   </PropertyGroup>
 
@@ -21,6 +22,8 @@
     <!-- Compiled from Shaders\*.fx with: fxc /T ps_2_0 /E main /O3 /Fo Shaders\X.ps Shaders\X.fx (Windows SDK) -->
     <Resource Include="Shaders\Lens.ps" />
     <Resource Include="Shaders\Blur.ps" />
+    <!-- logo (assets\make-icon.ps1 draws it): exe icon above, window icon at runtime -->
+    <Resource Include="assets\GlassDock.ico" />
   </ItemGroup>
 
   <!-- The installer is a separate project in Installer\; keep its files out of the app. -->

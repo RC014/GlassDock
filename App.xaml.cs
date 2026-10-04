@@ -44,7 +44,13 @@ public partial class App : Application
         }
 
         _mutex = new Mutex(true, "GlassDock.SingleInstance", out bool created);
-        if (!created) { Shutdown(); return; }
+        if (!created)
+        {
+            // Already running: ask that copy to show its bars, so starting GlassDock again visibly does something.
+            try { EventWaitHandle.OpenExisting(ShowBarsEventName).Set(); } catch { }
+            Shutdown();
+            return;
+        }
 
         DispatcherUnhandledException += (_, a) => { Log(a.Exception); a.Handled = true; };
         AppDomain.CurrentDomain.UnhandledException += (_, a) => { Log(a.ExceptionObject as Exception); Cleanup(); };
@@ -117,9 +123,35 @@ public partial class App : Application
                     if (fs) w.Hide(); else w.Show();
             };
         }
+
+        // Started by the installer: keep the bars up a few seconds so it's clear GlassDock is running.
+        if (e.Args.Contains("--welcome", StringComparer.OrdinalIgnoreCase)) RevealBars(TimeSpan.FromSeconds(5));
+        ListenForShowRequests();
     }
 
     private static AutoHide? _dockHide, _statusHide;
+
+    private const string ShowBarsEventName = "GlassDock.ShowBars";
+
+    /// <summary>Shows both bars for a while (they hide again afterwards as usual).</summary>
+    private static void RevealBars(TimeSpan duration)
+    {
+        _dockHide?.Reveal(duration);
+        _statusHide?.Reveal(duration);
+    }
+
+    /// <summary>When GlassDock is started again while running, the new copy signals this one to show its bars.</summary>
+    private static void ListenForShowRequests()
+    {
+        var signal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowBarsEventName);
+        var thread = new Thread(() =>
+        {
+            while (signal.WaitOne())
+                Current.Dispatcher.BeginInvoke(() => RevealBars(TimeSpan.FromSeconds(4)));
+        })
+        { IsBackground = true, Name = "GlassDock show requests" };
+        thread.Start();
+    }
 
     private static void DumpWindow(Window w, string path)
     {
