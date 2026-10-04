@@ -77,7 +77,7 @@ The bars stay hidden and float over your windows; they never take screen space a
 
 The volume keys change the volume in 2% steps and show GlassDock's glass volume indicator near the bottom of the screen instead of Windows' pop-up. Scrolling on the status bar shows it too.
 
-Whenever Windows would show its own volume or brightness pop-up anyway (a laptop's Fn keys, brightness keys, other software), GlassDock hides it and shows the glass indicator with the new volume or brightness instead.
+Whenever Windows would show its own volume or brightness pop-up anyway (a laptop's Fn keys, brightness keys, other software), GlassDock keeps it invisible and shows the glass indicator with the new volume or brightness instead. Quitting GlassDock gives Windows its pop-up back.
 
 ## Media player
 
@@ -133,7 +133,7 @@ Menus close by themselves when you move the cursor away from them.
 
 ## If the Windows taskbar doesn't come back
 
-Quitting GlassDock restores the Windows taskbar. If GlassDock was killed or crashed, run:
+Quitting GlassDock restores the Windows taskbar and Windows' volume/brightness pop-up. If GlassDock was killed or crashed, run:
 
 ```
 GlassDock.exe --restore

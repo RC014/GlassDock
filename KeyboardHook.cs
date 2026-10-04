@@ -90,7 +90,6 @@ internal static class KeyboardHook
         try
         {
             var k = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
-            if ((k.flags & LLKHF_INJECTED) != 0) return CallNextHookEx(_hook, code, wParam, lParam);
 
             int msg = wParam.ToInt32();
             bool down = msg is WM_KEYDOWN or WM_SYSKEYDOWN;
@@ -98,7 +97,7 @@ internal static class KeyboardHook
             int vk = (int)k.vkCode;
             var s = Settings.Current;
 
-            // ---- volume keys ----
+            // ---- volume keys (also simulated ones, e.g. from a laptop's Fn-key software: GlassDock never sends these) ----
             if (s.GlassVolumeIndicator && vk is VK_VOLUME_MUTE or VK_VOLUME_DOWN or VK_VOLUME_UP)
             {
                 if (down) _ui.BeginInvoke(() =>
@@ -109,6 +108,9 @@ internal static class KeyboardHook
                 });
                 return (IntPtr)1;
             }
+
+            // Everything below ignores keys GlassDock (or other software) simulates, so replayed shortcuts pass through.
+            if ((k.flags & LLKHF_INJECTED) != 0) return CallNextHookEx(_hook, code, wParam, lParam);
 
             // ---- Windows key ----
             if (vk is VK_LWIN or VK_RWIN)

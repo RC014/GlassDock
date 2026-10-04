@@ -102,7 +102,7 @@ internal sealed class VolumeOsdWindow : Window
         {
             var area = SystemParameters.WorkArea;
             Left = Math.Round(area.Left + (area.Width - W) / 2);
-            Top = Math.Round(area.Bottom - H - 84); // clear of the dock
+            Top = Math.Round(area.Bottom - H - 20); // low, like Windows' own pop-up
             _root.BeginAnimation(OpacityProperty, null);
             _root.Opacity = 1;
             Show();

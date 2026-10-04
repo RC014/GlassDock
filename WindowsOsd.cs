@@ -11,7 +11,8 @@ namespace GlassDock;
 /// Replaces Windows' volume / brightness pop-up with GlassDock's glass one, however it was triggered (keyboard
 /// keys GlassDock didn't catch, a laptop's Fn keys, brightness keys handled by the firmware...). Watches, from
 /// outside, for explorer showing its pop-up window (a small XAML island at the bottom centre of the screen),
-/// hides it straight away and shows the glass indicator with whichever level just changed.
+/// makes it transparent (so it never appears, not even for a frame) and shows the glass indicator with whichever
+/// level just changed.
 /// </summary>
 internal static class WindowsOsd
 {
@@ -26,6 +27,12 @@ internal static class WindowsOsd
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr h);
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr h, uint flags);
     [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr mon, ref MONITORINFO info);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string? title);
+    [DllImport("user32.dll")] private static extern bool SetLayeredWindowAttributes(IntPtr h, uint key, byte alpha, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetLayeredWindowAttributes(IntPtr h, out uint key, out byte alpha, out uint flags);
+    private const int WS_EX_LAYERED = 0x80000;
+    private const uint LWA_ALPHA = 2;
+    private const string OsdClass = "XamlExplorerHostIslandWindow";
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MONITORINFO { public int cbSize; public Native.RECT rcMonitor, rcWork; public uint dwFlags; }
@@ -45,6 +52,10 @@ internal static class WindowsOsd
         if (_hook != IntPtr.Zero) return;
         _proc = OnShow;
         _hook = SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, IntPtr.Zero, _proc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+        // Make the pop-up invisible before it's ever shown, so it can't flash even for a frame.
+        for (IntPtr h = IntPtr.Zero; (h = FindWindowEx(IntPtr.Zero, h, OsdClass, null)) != IntPtr.Zero;)
+            if (IsWindowsOsd(h)) MakeInvisible(h);
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => RestoreWindowsPopup();
         // Volume changed elsewhere (Quick Settings, the mixer...) shouldn't later look like a key press.
         _volumeSnapshot.Tick += (_, _) => _lastVolume = Audio.Get();
         _volumeSnapshot.Start();
@@ -58,13 +69,44 @@ internal static class WindowsOsd
         UnhookWinEvent(_hook);
         _hook = IntPtr.Zero;
         _volumeSnapshot.Stop();
+        RestoreWindowsPopup();
     }
 
     private static void OnShow(IntPtr hook, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
     {
         if (idObject != 0 || idChild != 0 || !Settings.Current.GlassVolumeIndicator || !IsWindowsOsd(hwnd)) return;
-        Native.ShowWindow(hwnd, Native.SW_HIDE);
+        // Normally it's already invisible; if explorer made a new one, hide this showing and make it invisible.
+        if (MakeInvisible(hwnd)) Native.ShowWindow(hwnd, Native.SW_HIDE);
         _ = ShowGlassAsync();
+    }
+
+    /// <summary>
+    /// Makes the pop-up window fully transparent (and so click-through) while leaving it to explorer otherwise: it
+    /// still "shows", but nothing appears on screen. Returns true if it wasn't transparent yet.
+    /// </summary>
+    private static bool MakeInvisible(IntPtr hwnd)
+    {
+        int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
+        if ((ex & WS_EX_LAYERED) != 0 && GetLayeredWindowAttributes(hwnd, out _, out byte alpha, out _) && alpha == 0) return false;
+        Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | WS_EX_LAYERED);
+        SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+        return true;
+    }
+
+    /// <summary>Gives Windows its pop-up back (on quit, when the setting is turned off, and by --restore).</summary>
+    public static void RestoreWindowsPopup()
+    {
+        try
+        {
+            for (IntPtr h = IntPtr.Zero; (h = FindWindowEx(IntPtr.Zero, h, OsdClass, null)) != IntPtr.Zero;)
+            {
+                int ex = Native.GetWindowLong(h, Native.GWL_EXSTYLE);
+                if ((ex & WS_EX_LAYERED) == 0) continue;
+                SetLayeredWindowAttributes(h, 0, 255, LWA_ALPHA);
+                Native.SetWindowLong(h, Native.GWL_EXSTYLE, ex & ~WS_EX_LAYERED);
+            }
+        }
+        catch { }
     }
 
     /// <summary>Explorer's pop-up: a small XAML island window, centred near the bottom of its monitor.</summary>
@@ -72,7 +114,7 @@ internal static class WindowsOsd
     {
         var cls = new StringBuilder(64);
         GetClassName(hwnd, cls, cls.Capacity);
-        if (cls.ToString() != "XamlExplorerHostIslandWindow") return false;
+        if (cls.ToString() != OsdClass) return false;
         if (!Native.GetWindowRect(hwnd, out var r)) return false;
         var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
         if (!GetMonitorInfo(MonitorFromWindow(hwnd, 2 /*MONITOR_DEFAULTTONEAREST*/), ref mi)) return false;

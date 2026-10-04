@@ -31,6 +31,12 @@ internal static class TaskbarRescue
 
     public static void Restore()
     {
+        WindowsOsd.RestoreWindowsPopup();
+        RestoreTaskbar();
+    }
+
+    private static void RestoreTaskbar()
+    {
         int state = Native.ABS_ALWAYSONTOP;
         try
         {
