@@ -111,7 +111,7 @@ Menus close by themselves when you move the cursor away from them.
 | `Refraction` | true | Real glass refraction of the background (see the note on screenshots below) |
 | `RefractionStrength` | 0.8 | How strongly the glass bends the background along its rim (0–1) |
 | `RefractionEdge` | 1 | Width of the refracting band along the rim (1 = a fifth of the short side; the Start menu uses a narrower band) |
-| `RefractionBlur` | 0.35 | Blur seen through the glass (0–1): none at the rim, full over the flat middle |
+| `RefractionBlur` | 0.35 | Blur seen through the glass (0–1): none at the rim, growing towards the centre |
 | `GlassBlur` | 0 | When refraction is off: 1 = frosted glass (Windows blur), 0 = clear glass |
 | `GlassOpacity` | 0.43 | Strength of the tint over the glass (lower = clearer) |
 | `GlassHighlights` | 0.45 | Strength of the glass's white shine, edge glow and rim (lower = less white) |
