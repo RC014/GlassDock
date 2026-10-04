@@ -8,12 +8,19 @@ A glass replacement for the Windows 11 taskbar. Instead of one bar across the wh
 
 All of them are drawn as glass that refracts what's behind it: the background is magnified and softened towards the middle of each bubble and stays clear at the rim.
 
-## Requirements
+## Download
 
-- Windows 11
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) to build it (or the .NET 10 Desktop Runtime to run a build)
+1. Download `GlassDock.exe` from the [latest release](https://github.com/RC014/GlassDock/releases/latest). It includes everything it needs; nothing else has to be installed.
+2. Put it somewhere permanent (for example `C:\Program Files\GlassDock` or a folder in your user profile) and run it.
+3. Windows may show "Windows protected your PC" because the app isn't code-signed: click **More info** › **Run anyway**.
 
-## Build and run
+On first run GlassDock imports your current Windows taskbar pins, hides the Windows taskbar and adds itself to startup. All of this can be changed in its settings.
+
+Requires Windows 11 (64-bit).
+
+## Build from source
+
+Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```
 git clone https://github.com/RC014/GlassDock.git
@@ -22,7 +29,11 @@ dotnet build -c Release
 bin\Release\net10.0-windows10.0.22621.0\GlassDock.exe
 ```
 
-On first run GlassDock imports your current Windows taskbar pins, hides the Windows taskbar and adds itself to startup. All of this can be changed in its settings.
+To build the standalone single-file `GlassDock.exe` used for releases:
+
+```
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -o publish
+```
 
 ## Showing and hiding the bars
 
