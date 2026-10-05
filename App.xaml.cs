@@ -141,6 +141,7 @@ public partial class App : Application
         KeyboardHook.VolumeChanged += ShowVolumeOsd;
         if (Settings.Current.WindowsKeyOpensGlassStart || Settings.Current.GlassVolumeIndicator) KeyboardHook.Start();
         if (Settings.Current.GlassVolumeIndicator) WindowsOsd.Start();
+        Updater.StartAutomaticChecks();
         // Build the Start menu and Quick Settings once in the background, so their first open is as smooth as the rest.
         {
             var warm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };

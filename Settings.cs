@@ -40,6 +40,10 @@ internal sealed class Settings
     /// <summary>For weaker PCs: no open/close animations on the Start menu and Quick Settings, and the glass updates
     /// only 5 times a second (RefractionFps is kept for when this is turned off).</summary>
     public bool LowPowerMode { get; set; } = false;
+    /// <summary>Look for a newer GlassDock on GitHub shortly after start and once a day.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+    /// <summary>A release the user chose to skip ("v1.2.3"); it isn't offered again automatically.</summary>
+    public string? SkippedVersion { get; set; }
     /// <summary>The glass update rate actually used.</summary>
     [JsonIgnore] public double EffectiveRefractionFps => LowPowerMode ? 5 : RefractionFps;
     /// <summary>Hide the bars until the cursor touches the bottom edge of the screen; they float over apps.</summary>

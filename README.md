@@ -91,9 +91,13 @@ Whenever Windows would show its own volume or brightness pop-up anyway (a laptop
 - Network / volume / battery: click to open GlassDock's **Quick Settings** panel, scroll to change the volume, middle-click to mute. The panel (on the same glass as the bars) has the now-playing card, Wi-Fi and Bluetooth (with network/device names; the arrow opens their settings), airplane mode, accessibility, energy saver, live captions, brightness and volume sliders, battery and a shortcut to Windows Settings. Click anywhere outside it to close it.
 - Click the clock to open notifications and the calendar.
 
+## Updates
+
+Shortly after it starts (and once a day while running), GlassDock checks GitHub for a newer version. If there is one, it shows what's new with **Update**, **Later** and **Skip this version**. **Update** downloads the new installer, installs it silently and restarts GlassDock; your settings are kept. You can also check any time with **Check for updates…** in the GlassDock menu, or turn automatic checks off in settings.
+
 ## GlassDock menu
 
-Right-click the Windows button, the media player, the clock or any empty spot on a bar (or use **GlassDock settings…** at the bottom of an app's right-click menu) for: Task Manager, Taskbar settings, Start with Windows, GlassDock settings…, Reload GlassDock and Quit GlassDock.
+Right-click the Windows button, the media player, the clock or any empty spot on a bar (or use **GlassDock settings…** at the bottom of an app's right-click menu) for: Task Manager, Taskbar settings, Start with Windows, GlassDock settings…, Check for updates…, Reload GlassDock and Quit GlassDock.
 
 Menus close by themselves when you move the cursor away from them.
 
@@ -116,6 +120,7 @@ Menus close by themselves when you move the cursor away from them.
 | `RefractionBlur` | 0.35 | Blur seen through the glass (0–1): none at the rim, growing towards the centre |
 | `RefractionFps` | 20 | How many times a second the glass updates what's behind it (5–60; lower = lighter on the PC) |
 | `LowPowerMode` | false | For weaker PCs: no open/close animations on the Start menu and Quick Settings, and the glass updates only 5 times a second |
+| `CheckForUpdates` | true | Look for a new GlassDock version on GitHub shortly after start and once a day |
 | `GlassBlur` | 0 | When refraction is off: 1 = frosted glass (Windows blur), 0 = clear glass |
 | `GlassOpacity` | 0.43 | Strength of the tint over the glass (lower = clearer) |
 | `GlassHighlights` | 0.45 | Strength of the glass's white shine, edge glow and rim (lower = less white) |

@@ -739,6 +739,7 @@ public partial class DockWindow : GlassWindow
         startup.IsChecked = App.StartsWithWindows;
         menu.Items.Add(startup);
         menu.Items.Add(MenuItem("GlassDock settings…", SettingsWindow.ShowSingle));
+        menu.Items.Add(MenuItem("Check for updates…", () => _ = Updater.CheckAsync(manual: true)));
         menu.Items.Add(MenuItem("Reload GlassDock", App.Restart));
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("Quit GlassDock", App.Quit));

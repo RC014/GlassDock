@@ -49,6 +49,7 @@ internal sealed class SettingsWindow : Window
 
         Section("Performance");
         Check("Optimise for weaker PCs (no panel animations, glass updates 5 times a second)", () => _s.LowPowerMode, v => _s.LowPowerMode = v);
+        Check("Check for updates automatically", () => _s.CheckForUpdates, v => _s.CheckForUpdates = v);
 
         Section("Look");
         Slider("Corner roundness", () => _s.CornerRadius, v => _s.CornerRadius = v, 0, 30, 1, "0");
