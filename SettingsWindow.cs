@@ -47,6 +47,9 @@ internal sealed class SettingsWindow : Window
         Check("Media player: show title", () => _s.ShowMediaTitle, v => _s.ShowMediaTitle = v);
         Check("Media player: show artist", () => _s.ShowMediaArtist, v => _s.ShowMediaArtist = v);
 
+        Section("Performance");
+        Check("Optimise for weaker PCs (no panel animations, glass updates 5 times a second)", () => _s.LowPowerMode, v => _s.LowPowerMode = v);
+
         Section("Look");
         Slider("Corner roundness", () => _s.CornerRadius, v => _s.CornerRadius = v, 0, 30, 1, "0");
         Check("Real glass refraction (bars won't appear in screenshots)", () => _s.Refraction, v => _s.Refraction = v);

@@ -17,6 +17,8 @@ namespace GlassDock;
 internal sealed class PanelAnimation
 {
     private const double Rise = 18, Sink = 12;      // DIPs
+    /// <summary>Furthest a panel is below its resting place during an animation, in DIPs.</summary>
+    public const double MaxTravel = Rise;
     private const double OpenMs = 200, CloseMs = 140;
 
     [DllImport("user32.dll")] private static extern bool SetLayeredWindowAttributes(IntPtr h, uint key, byte alpha, uint flags);
@@ -29,6 +31,12 @@ internal sealed class PanelAnimation
 
     public PanelAnimation(Window window) => _window = window;
 
+    /// <summary>Where the panel rests when open (window Top, DIPs).</summary>
+    public double RestTop { get; private set; }
+
+    /// <summary>How far below its resting place the panel is right now (DIPs; 0 when not animating).</summary>
+    public double OffsetDip => _window.IsVisible ? Math.Clamp(_window.Top - RestTop, 0, MaxTravel) : 0;
+
     /// <summary>True while the close animation runs (the window is still visible).</summary>
     public bool IsClosing { get; private set; }
 
@@ -37,6 +45,14 @@ internal sealed class PanelAnimation
     {
         Stop();
         IsClosing = false;
+        RestTop = top;
+        if (Settings.Current.LowPowerMode)
+        {
+            SetAlpha(1);
+            _window.Top = top;
+            if (!_window.IsVisible) _window.Show();
+            return;
+        }
         double startAlpha = _window.IsVisible ? Alpha : 0;
         SetAlpha(startAlpha);
         double startTop = _window.IsVisible ? _window.Top : top + Rise;
@@ -55,8 +71,15 @@ internal sealed class PanelAnimation
     {
         if (!_window.IsVisible || IsClosing) return;
         Stop();
+        if (Settings.Current.LowPowerMode)
+        {
+            _window.Hide();
+            hidden?.Invoke();
+            return;
+        }
         IsClosing = true;
         double top = _window.Top, startAlpha = Alpha;
+        RestTop = top;
         Run(CloseMs, t =>
         {
             double e = t * t; // ease-in
@@ -104,4 +127,10 @@ internal sealed class PanelAnimation
         CompositionTarget.Rendering -= _frame;
         _frame = null;
     }
+}
+
+/// <summary>A window opened and closed with a <see cref="PanelAnimation"/> (its glass follows the animation).</summary>
+internal interface IAnimatedPanel
+{
+    PanelAnimation Animation { get; }
 }

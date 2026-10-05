@@ -18,7 +18,7 @@ namespace GlassDock;
 /// the signed-in account and power options. Opens from the dock's Start button and a lone press of the Windows
 /// key; closes when it loses focus, on Esc, or after launching something.
 /// </summary>
-public partial class StartMenuWindow : Window
+public partial class StartMenuWindow : Window, IAnimatedPanel
 {
     private IntPtr _hwnd;
     private List<StartApp> _apps = new();
@@ -49,6 +49,7 @@ public partial class StartMenuWindow : Window
     }
 
     private readonly PanelAnimation _anim;
+    PanelAnimation IAnimatedPanel.Animation => _anim;
 
     internal void Dismiss() { if (IsVisible && !_anim.IsClosing) { _anim.Hide(); _hiddenAt = DateTime.Now; } }
 

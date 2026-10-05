@@ -7,7 +7,7 @@ using System.Windows.Threading;
 namespace GlassDock;
 
 /// <summary>
-/// Copies the screen behind each visible glass surface RefractionFps times a second (20 by default), so the lens
+/// Copies the screen behind each visible glass surface EffectiveRefractionFps times a second (20 by default), so the lens
 /// shader has a real image to refract. The bars exclude themselves from screen capture (see GlassWindow), so they
 /// never sample themselves.
 /// </summary>
@@ -17,7 +17,7 @@ internal static class ScreenSampler
     private static DispatcherTimer? _timer;
     private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
     private static double _lastSampleMs = double.NegativeInfinity;
-    private static double IntervalMs => 1000 / Settings.Current.RefractionFps;
+    private static double IntervalMs => 1000 / Settings.Current.EffectiveRefractionFps;
 
     public static void Register(GlassSurface surface)
     {

@@ -115,6 +115,7 @@ Menus close by themselves when you move the cursor away from them.
 | `RefractionEdge` | 1 | Width of the refracting band along the rim (1 = a fifth of the short side; the Start menu uses a narrower band) |
 | `RefractionBlur` | 0.35 | Blur seen through the glass (0–1): none at the rim, growing towards the centre |
 | `RefractionFps` | 20 | How many times a second the glass updates what's behind it (5–60; lower = lighter on the PC) |
+| `LowPowerMode` | false | For weaker PCs: no open/close animations on the Start menu and Quick Settings, and the glass updates only 5 times a second |
 | `GlassBlur` | 0 | When refraction is off: 1 = frosted glass (Windows blur), 0 = clear glass |
 | `GlassOpacity` | 0.43 | Strength of the tint over the glass (lower = clearer) |
 | `GlassHighlights` | 0.45 | Strength of the glass's white shine, edge glow and rim (lower = less white) |

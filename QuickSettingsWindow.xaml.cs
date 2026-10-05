@@ -16,7 +16,7 @@ namespace GlassDock;
 /// accessibility, energy saver, live captions, brightness, volume and battery. Opens above the status bar from
 /// its network/volume/battery button; closes when you click elsewhere.
 /// </summary>
-public partial class QuickSettingsWindow : Window
+public partial class QuickSettingsWindow : Window, IAnimatedPanel
 {
     private IntPtr _hwnd;
     private Radio? _wifi, _bluetooth;
@@ -73,6 +73,7 @@ public partial class QuickSettingsWindow : Window
     }
 
     private readonly PanelAnimation _anim;
+    PanelAnimation IAnimatedPanel.Animation => _anim;
 
     /// <summary>Closes the panel with its animation (hides <see cref="Window.Hide"/> on purpose: every close animates).</summary>
     public new void Hide() => _anim.Hide();
