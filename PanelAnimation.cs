@@ -29,12 +29,33 @@ internal sealed class PanelAnimation
     private readonly Stopwatch _clock = new();
     private EventHandler? _frame;
 
+    private readonly UIElement _body;
+    private readonly GlassSurface _glass;
+
     /// <param name="body">The panel's contents (everything above the glass), which slide.</param>
-    public PanelAnimation(Window window, UIElement body)
+    /// <param name="glass">The panel's glass, which stays put.</param>
+    public PanelAnimation(Window window, UIElement body, GlassSurface glass)
     {
         _window = window;
+        _body = body;
+        _glass = glass;
         body.RenderTransform = _shift;
     }
+
+    /// <summary>
+    /// While animating, the glass and the contents are each drawn once into a cached bitmap, so a frame only moves
+    /// the contents' bitmap and fades the window instead of redrawing text, icons and the refraction shaders.
+    /// </summary>
+    private void Cache(bool on)
+    {
+        double scale = VisualTreeHelper.GetDpi(_window).DpiScaleX;
+        _body.CacheMode = on ? new BitmapCache(scale) : null;
+        _glass.CacheMode = on ? new BitmapCache(scale) : null;
+        _glass.IsAnimating = on;
+    }
+
+    /// <summary>True while an open or close animation runs.</summary>
+    public bool IsAnimating => _frame != null;
 
     /// <summary>True while the close animation runs (the window is still visible).</summary>
     public bool IsClosing { get; private set; }
@@ -106,6 +127,7 @@ internal sealed class PanelAnimation
 
     private void Run(double ms, Action<double> step, Action? done)
     {
+        Cache(true);
         _clock.Restart();
         step(0);
         _frame = (_, _) =>
@@ -124,5 +146,6 @@ internal sealed class PanelAnimation
         if (_frame == null) return;
         CompositionTarget.Rendering -= _frame;
         _frame = null;
+        Cache(false);
     }
 }

@@ -128,7 +128,10 @@ public sealed class GlassSurface : Grid
     internal bool NeedsSample => IsVisible && ActualWidth >= 2 && ActualHeight >= 2 && PresentationSource.FromVisual(this) != null;
 
     /// <summary>No new pictures while the bar slides: the last one travels with the glass and the bar isn't redrawn.</summary>
-    internal bool IsSliding => Window.GetWindow(this) is GlassWindow { IsSliding: true };
+    internal bool IsSliding => IsAnimating || Window.GetWindow(this) is GlassWindow { IsSliding: true };
+
+    /// <summary>Set while a panel animates (PanelAnimation): no new screen samples, so the cached glass stays cached.</summary>
+    internal bool IsAnimating { get; set; }
 
     /// <summary>Copies the screen area currently under this surface (physical px) into the lens image.</summary>
     internal void Sample(IntPtr screenDc)

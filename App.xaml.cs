@@ -141,6 +141,13 @@ public partial class App : Application
         KeyboardHook.VolumeChanged += ShowVolumeOsd;
         if (Settings.Current.WindowsKeyOpensGlassStart || Settings.Current.GlassVolumeIndicator) KeyboardHook.Start();
         if (Settings.Current.GlassVolumeIndicator) WindowsOsd.Start();
+        // Build the Start menu and Quick Settings once in the background, so their first open is as smooth as the rest.
+        {
+            var warm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            warm.Tick += (_, _) => { warm.Stop(); if (Settings.Current.GlassStartMenu && _startMenu == null) (_startMenu = new StartMenuWindow()).Prewarm(); };
+            warm.Tick += (_, _) => Status?.PrewarmQuickSettings();
+            warm.Start();
+        }
     }
 
     private static AutoHide? _dockHide, _statusHide;

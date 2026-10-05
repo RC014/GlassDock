@@ -251,13 +251,22 @@ public partial class StatusWindow : GlassWindow
     /// <summary>True while the Quick Settings panel is open (keeps the status bar up).</summary>
     public bool IsQuickSettingsOpen => _quickSettings?.IsVisible == true;
 
-    private void System_Click(object sender, MouseButtonEventArgs e)
+    private QuickSettingsWindow EnsureQuickSettings()
     {
         if (_quickSettings == null)
         {
             _quickSettings = new QuickSettingsWindow();
             _quickSettings.IsOverOpener = p => IsOver(SystemButton, p);
         }
+        return _quickSettings;
+    }
+
+    /// <summary>Creates and draws Quick Settings once in the background, so its first open is smooth.</summary>
+    internal void PrewarmQuickSettings() => EnsureQuickSettings().Prewarm();
+
+    private void System_Click(object sender, MouseButtonEventArgs e)
+    {
+        EnsureQuickSettings();
         var glass = new Rect(Left, Top, ActualWidth, Math.Max(0, ActualHeight - Settings.Current.BottomMargin));
         _quickSettings.Toggle(this, glass);
     }

@@ -32,7 +32,7 @@ public partial class QuickSettingsWindow : Window
     public QuickSettingsWindow()
     {
         InitializeComponent();
-        _anim = new PanelAnimation(this, Body);
+        _anim = new PanelAnimation(this, Body, Glass);
         Resources["QsAccent"] = new SolidColorBrush(AccentColor());
         if (!Settings.Current.Refraction) Glass.Visibility = Visibility.Collapsed;
         BuildTiles();
@@ -50,7 +50,7 @@ public partial class QuickSettingsWindow : Window
         };
 
         MediaController.Instance.Changed += UpdateMedia;
-        _poll.Tick += (_, _) => { UpdateVolume(); UpdateBattery(); UpdateToggles(); };
+        _poll.Tick += (_, _) => { if (_anim.IsAnimating) return; UpdateVolume(); UpdateBattery(); UpdateToggles(); };
         _brightnessDebounce.Tick += (_, _) => { _brightnessDebounce.Stop(); SystemControls.SetBrightness((int)BrightnessSlider.Value); };
         BrightnessSlider.ValueChanged += (_, _) => { if (!_updating) { _brightnessDebounce.Stop(); _brightnessDebounce.Start(); } };
         VolumeSlider.ValueChanged += (_, _) => { if (!_updating) { Audio.SetLevel((float)(VolumeSlider.Value / 100)); UpdateVolumeGlyph(); } };
@@ -70,6 +70,21 @@ public partial class QuickSettingsWindow : Window
         Left = Math.Round(barGlassScreenDip.Right - Width);
         _anim.Show(Math.Round(barGlassScreenDip.Top - root.DesiredSize.Height - 10));
         ScreenSampler.SampleNow(Glass);
+    }
+
+    /// <summary>Draws the panel once off-screen (it never takes focus), so the first real open doesn't stall.</summary>
+    internal async void Prewarm()
+    {
+        try
+        {
+            if (IsVisible) return;
+            Left = SystemParameters.WorkArea.Left;
+            Top = SystemParameters.WorkArea.Bottom + 200; // below the screen
+            base.Show();
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle); // after it rendered
+            if (!_anim.IsAnimating) base.Hide();
+        }
+        catch (Exception ex) { App.Log(ex); }
     }
 
     private readonly PanelAnimation _anim;
@@ -118,7 +133,7 @@ public partial class QuickSettingsWindow : Window
         UpdateMedia();
         UpdateVolume();
         UpdateBattery();
-        int? brightness = SystemControls.GetBrightness();
+        int? brightness = await Task.Run(SystemControls.GetBrightness); // WMI: slow, keep it off the UI thread
         BrightnessRow.Visibility = brightness == null ? Visibility.Collapsed : Visibility.Visible;
         if (brightness != null) { _updating = true; BrightnessSlider.Value = brightness.Value; _updating = false; }
 

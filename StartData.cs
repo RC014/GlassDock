@@ -49,13 +49,23 @@ public sealed class StartRecent
         Name = name;
         LinkPath = linkPath;
         When = when;
-        Icon = Shell.GetIcon(linkPath, 48);
     }
 
     public string Name { get; }
     public string LinkPath { get; }
     public DateTime When { get; }
-    public ImageSource? Icon { get; }
+    private ImageSource? _icon;
+    private bool _iconLoaded;
+
+    /// <summary>Loaded on first use (when the item is shown), so listing recent files stays cheap.</summary>
+    public ImageSource? Icon
+    {
+        get
+        {
+            if (!_iconLoaded) { _iconLoaded = true; _icon = Shell.GetIcon(LinkPath, 48); }
+            return _icon;
+        }
+    }
 
     public string Ago
     {

@@ -28,7 +28,7 @@ public partial class StartMenuWindow : Window
     public StartMenuWindow()
     {
         InitializeComponent();
-        _anim = new PanelAnimation(this, Body);
+        _anim = new PanelAnimation(this, Body, Glass);
         if (!Settings.Current.Refraction) Glass.Visibility = Visibility.Collapsed;
 
         SourceInitialized += (_, _) =>
@@ -86,6 +86,30 @@ public partial class StartMenuWindow : Window
     private void Launched() => Dismiss();
 
     /// <summary>Debug (GLASSDOCK_DUMP): opens the menu and keeps it open.</summary>
+    /// <summary>
+    /// Builds and draws the menu once, off-screen and without taking focus, so the first real open doesn't stall
+    /// on creating it (app list, icons, first layout and render).
+    /// </summary>
+    internal async void Prewarm()
+    {
+        try
+        {
+            await LoadAppsAsync();
+            LoadRecent();
+            if (IsVisible) return;
+            var area = SystemParameters.WorkArea;
+            Height = Math.Min(700, area.Height - 100);
+            Left = area.Left;
+            Top = area.Bottom + 200; // below the screen
+            ShowActivated = false;
+            Show();
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle); // after it rendered
+            if (!IsActive) Hide();
+            ShowActivated = true;
+        }
+        catch (Exception ex) { App.Log(ex); }
+    }
+
     internal Window OpenForDump()
     {
         _menuOpen = true;
@@ -109,6 +133,8 @@ public partial class StartMenuWindow : Window
     {
         var byId = _apps.GroupBy(a => a.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var pinned = Settings.Current.StartPins.Select(id => byId.TryGetValue(id, out var a) ? a : null).OfType<StartApp>().ToList();
+        // Same apps as last time: keep the list (rebuilding it re-creates every tile and reloads nothing new).
+        if (PinnedList.ItemsSource is List<StartApp> old && old.SequenceEqual(pinned)) return;
         PinnedList.ItemsSource = pinned;
         PinnedEmpty.Visibility = pinned.Count == 0 && _apps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -116,6 +142,7 @@ public partial class StartMenuWindow : Window
     private void LoadRecent()
     {
         var recent = StartData.GetRecent(6);
+        if (RecentList.ItemsSource is List<StartRecent> old && old.Select(r => (r.LinkPath, r.When)).SequenceEqual(recent.Select(r => (r.LinkPath, r.When)))) return;
         RecentList.ItemsSource = recent;
         RecentEmpty.Visibility = recent.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
