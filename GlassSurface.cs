@@ -142,21 +142,7 @@ public sealed class GlassSurface : Grid
         if (window == null) return;
         Native.RECT rest;
         if (window is GlassWindow bar) rest = bar.RestRectPx;
-        else
-        {
-            if (!Native.GetWindowRect(new System.Windows.Interop.WindowInteropHelper(window).Handle, out rest)) return;
-            if (window is IAnimatedPanel panel)
-            {
-                // A panel rising into place / sinking away: always capture where it rests. The picture then travels
-                // rigidly with the glass during the short animation (like the bars' slide) and is exactly right when it
-                // stops. (Keeping it fixed on screen instead lags a frame behind the window move: WPF redraws the
-                // content a frame after Windows moves the window.)
-                double s = VisualTreeHelper.GetDpi(this).DpiScaleY;
-                int off = (int)Math.Round(panel.Animation.OffsetDip * s);
-                rest.Top -= off;
-                rest.Bottom -= off;
-            }
-        }
+        else if (!Native.GetWindowRect(new System.Windows.Interop.WindowInteropHelper(window).Handle, out rest)) return;
         int x = rest.Left, y = rest.Top, w = rest.Right - rest.Left, h = rest.Bottom - rest.Top;
         if (w < 2 || h < 2) return;
 

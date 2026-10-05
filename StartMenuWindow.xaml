@@ -97,7 +97,7 @@
     <Grid>
         <local:GlassSurface x:Name="Glass" BandScale="0.4" />
 
-        <Grid>
+        <Grid x:Name="Body">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

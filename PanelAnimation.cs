@@ -9,16 +9,15 @@ using GlassDock.Interop;
 namespace GlassDock;
 
 /// <summary>
-/// Open / close animation for the glass panels (Start menu, Quick Settings): they rise into place while fading in,
-/// and sink a little while fading out. The fade is done by Windows on the whole window (a layered window with
-/// constant alpha, composed by DWM), so the panels stay ordinary hardware-rendered windows and the glass, its
-/// shadow and rounded corners fade together.
+/// Open / close animation for the glass panels (Start menu, Quick Settings). The window itself never moves: the
+/// whole panel fades in where it rests (Windows fades the window, a layered window with constant alpha composed by
+/// DWM, so glass, shadow and rounded corners fade together) while its contents rise into place; closing fades it
+/// out while the contents sink a little. Keeping the window still keeps the glass's picture of the screen behind it
+/// exact on every frame (a moving window is redrawn a frame after Windows moves it, so its glass would lag).
 /// </summary>
 internal sealed class PanelAnimation
 {
     private const double Rise = 18, Sink = 12;      // DIPs
-    /// <summary>Furthest a panel is below its resting place during an animation, in DIPs.</summary>
-    public const double MaxTravel = Rise;
     private const double OpenMs = 200, CloseMs = 140;
 
     [DllImport("user32.dll")] private static extern bool SetLayeredWindowAttributes(IntPtr h, uint key, byte alpha, uint flags);
@@ -26,47 +25,47 @@ internal sealed class PanelAnimation
     private const uint LWA_ALPHA = 2;
 
     private readonly Window _window;
+    private readonly TranslateTransform _shift = new();
     private readonly Stopwatch _clock = new();
     private EventHandler? _frame;
 
-    public PanelAnimation(Window window) => _window = window;
-
-    /// <summary>Where the panel rests when open (window Top, DIPs).</summary>
-    public double RestTop { get; private set; }
-
-    /// <summary>How far below its resting place the panel is right now (DIPs; 0 when not animating).</summary>
-    public double OffsetDip => _window.IsVisible ? Math.Clamp(_window.Top - RestTop, 0, MaxTravel) : 0;
+    /// <param name="body">The panel's contents (everything above the glass), which slide.</param>
+    public PanelAnimation(Window window, UIElement body)
+    {
+        _window = window;
+        body.RenderTransform = _shift;
+    }
 
     /// <summary>True while the close animation runs (the window is still visible).</summary>
     public bool IsClosing { get; private set; }
 
-    /// <summary>Shows the window (or brings it back if it's closing), rising into place at <paramref name="top"/>.</summary>
+    /// <summary>Shows the window at <paramref name="top"/> (or brings it back if it's closing).</summary>
     public void Show(double top)
     {
         Stop();
         IsClosing = false;
-        RestTop = top;
+        _window.Top = top;
         if (Settings.Current.LowPowerMode)
         {
             SetAlpha(1);
-            _window.Top = top;
+            _shift.Y = 0;
             if (!_window.IsVisible) _window.Show();
             return;
         }
-        double startAlpha = _window.IsVisible ? Alpha : 0;
+        bool wasVisible = _window.IsVisible;
+        double startAlpha = wasVisible ? Alpha : 0, startY = wasVisible ? _shift.Y : Rise;
         SetAlpha(startAlpha);
-        double startTop = _window.IsVisible ? _window.Top : top + Rise;
-        _window.Top = startTop;
-        if (!_window.IsVisible) _window.Show();
+        _shift.Y = startY;
+        if (!wasVisible) _window.Show();
         Run(OpenMs, t =>
         {
             double e = 1 - Math.Pow(1 - t, 3); // ease-out
-            _window.Top = startTop + (top - startTop) * e;
+            _shift.Y = startY * (1 - e);
             SetAlpha(startAlpha + (1 - startAlpha) * e);
         }, null);
     }
 
-    /// <summary>Sinks and fades the window out, then hides it.</summary>
+    /// <summary>Fades the window out while its contents sink, then hides it.</summary>
     public void Hide(Action? hidden = null)
     {
         if (!_window.IsVisible || IsClosing) return;
@@ -78,17 +77,16 @@ internal sealed class PanelAnimation
             return;
         }
         IsClosing = true;
-        double top = _window.Top, startAlpha = Alpha;
-        RestTop = top;
+        double startAlpha = Alpha, startY = _shift.Y;
         Run(CloseMs, t =>
         {
             double e = t * t; // ease-in
-            _window.Top = top + Sink * e;
+            _shift.Y = startY + (Sink - startY) * e;
             SetAlpha(startAlpha * (1 - e));
         }, () =>
         {
             _window.Hide();
-            _window.Top = top;
+            _shift.Y = 0;
             SetAlpha(1);
             IsClosing = false;
             hidden?.Invoke();
@@ -127,10 +125,4 @@ internal sealed class PanelAnimation
         CompositionTarget.Rendering -= _frame;
         _frame = null;
     }
-}
-
-/// <summary>A window opened and closed with a <see cref="PanelAnimation"/> (its glass follows the animation).</summary>
-internal interface IAnimatedPanel
-{
-    PanelAnimation Animation { get; }
 }

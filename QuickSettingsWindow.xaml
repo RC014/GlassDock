@@ -76,7 +76,7 @@
     <Grid>
         <local:GlassSurface x:Name="Glass" />
 
-        <StackPanel Margin="16,14,16,10">
+        <StackPanel x:Name="Body" Margin="16,14,16,10">
             <!-- Now playing -->
             <Grid x:Name="MediaCard" Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
