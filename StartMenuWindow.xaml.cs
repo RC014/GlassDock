@@ -28,6 +28,7 @@ public partial class StartMenuWindow : Window
     public StartMenuWindow()
     {
         InitializeComponent();
+        _anim = new PanelAnimation(this);
         if (!Settings.Current.Refraction) Glass.Visibility = Visibility.Collapsed;
 
         SourceInitialized += (_, _) =>
@@ -47,14 +48,16 @@ public partial class StartMenuWindow : Window
         _ = LoadUserAsync();
     }
 
-    internal void Dismiss() { if (IsVisible) { Hide(); _hiddenAt = DateTime.Now; } }
+    private readonly PanelAnimation _anim;
+
+    internal void Dismiss() { if (IsVisible && !_anim.IsClosing) { _anim.Hide(); _hiddenAt = DateTime.Now; } }
 
     // ---------------- open / close ----------------
 
     /// <summary>Opens the menu, or closes it if it's open.</summary>
     internal void Toggle()
     {
-        if (IsVisible) { Dismiss(); return; }
+        if (IsVisible && !_anim.IsClosing) { Dismiss(); return; }
         // A click on the Start button that just took focus away (and so closed the menu) shouldn't reopen it.
         if ((DateTime.Now - _hiddenAt).TotalMilliseconds < 250) return;
         Open();
@@ -70,9 +73,9 @@ public partial class StartMenuWindow : Window
         var area = SystemParameters.WorkArea;
         Height = Math.Min(700, area.Height - 100);
         Left = Math.Round(area.Left + (area.Width - Width) / 2);
-        Top = Math.Round(area.Bottom - Height - 74); // above the dock
+        double top = Math.Round(area.Bottom - Height - 74); // above the dock
 
-        Show();
+        _anim.Show(top);
         ForceForeground(_hwnd);
         Activate();
         SearchBox.Focus();

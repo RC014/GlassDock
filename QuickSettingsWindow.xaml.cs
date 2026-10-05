@@ -32,6 +32,7 @@ public partial class QuickSettingsWindow : Window
     public QuickSettingsWindow()
     {
         InitializeComponent();
+        _anim = new PanelAnimation(this);
         Resources["QsAccent"] = new SolidColorBrush(AccentColor());
         if (!Settings.Current.Refraction) Glass.Visibility = Visibility.Collapsed;
         BuildTiles();
@@ -61,14 +62,20 @@ public partial class QuickSettingsWindow : Window
     /// <summary>Opens (or closes, if already open) the panel above the given bar, right-aligned with it.</summary>
     internal void Toggle(Window bar, Rect barGlassScreenDip)
     {
-        if (IsVisible) { Hide(); return; }
+        if (IsVisible && !_anim.IsClosing) { Hide(); return; }
         _ = RefreshAsync();
-        Show();
-        UpdateLayout();
-        Left = Math.Round(barGlassScreenDip.Right - ActualWidth);
-        Top = Math.Round(barGlassScreenDip.Top - ActualHeight - 10);
+        // Size it before it shows, so it can rise straight into its final place.
+        var root = (FrameworkElement)Content;
+        root.Measure(new Size(Width, double.PositiveInfinity));
+        Left = Math.Round(barGlassScreenDip.Right - Width);
+        _anim.Show(Math.Round(barGlassScreenDip.Top - root.DesiredSize.Height - 10));
         ScreenSampler.SampleNow(Glass);
     }
+
+    private readonly PanelAnimation _anim;
+
+    /// <summary>Closes the panel with its animation (hides <see cref="Window.Hide"/> on purpose: every close animates).</summary>
+    public new void Hide() => _anim.Hide();
 
     /// <summary>Whether a physical screen point is over the panel.</summary>
     internal bool ContainsScreenPoint(Native.POINT p) =>
