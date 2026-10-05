@@ -147,13 +147,14 @@ public sealed class GlassSurface : Grid
             if (!Native.GetWindowRect(new System.Windows.Interop.WindowInteropHelper(window).Handle, out rest)) return;
             if (window is IAnimatedPanel panel)
             {
-                // A panel rising into place / sinking away: capture where it rests plus the strip it travels
-                // through, so the picture stays put on screen while the glass moves over it (UpdateViewbox).
+                // A panel rising into place / sinking away: always capture where it rests. The picture then travels
+                // rigidly with the glass during the short animation (like the bars' slide) and is exactly right when it
+                // stops. (Keeping it fixed on screen instead lags a frame behind the window move: WPF redraws the
+                // content a frame after Windows moves the window.)
                 double s = VisualTreeHelper.GetDpi(this).DpiScaleY;
                 int off = (int)Math.Round(panel.Animation.OffsetDip * s);
                 rest.Top -= off;
                 rest.Bottom -= off;
-                rest.Bottom += (int)Math.Ceiling(PanelAnimation.MaxTravel * s);
             }
         }
         int x = rest.Left, y = rest.Top, w = rest.Right - rest.Left, h = rest.Bottom - rest.Top;
@@ -196,12 +197,10 @@ public sealed class GlassSurface : Grid
         if (_bitmap == null || Window.GetWindow(this) is not { Content: Visual root } window || PresentationSource.FromVisual(this) == null) return;
         double s = VisualTreeHelper.GetDpi(this).DpiScaleX;
         double shift = window is GlassWindow gw ? gw.ShiftDip : 0;
-        // panels capture from their resting place (Sample): add how far they still are from it
-        double travel = window is IAnimatedPanel panel ? panel.Animation.OffsetDip : 0;
         var toWindow = TransformToAncestor(root);
         var tl = toWindow.Transform(new Point(0, 0));
         var br = toWindow.Transform(new Point(ActualWidth, ActualHeight));
-        var box = new Rect((tl.X + shift) * s, (tl.Y + travel) * s, Math.Max(1, (br.X - tl.X) * s), Math.Max(1, (br.Y - tl.Y) * s));
+        var box = new Rect((tl.X + shift) * s, tl.Y * s, Math.Max(1, (br.X - tl.X) * s), Math.Max(1, (br.Y - tl.Y) * s));
         if (box != _lensBrush.Viewbox) _lensBrush.Viewbox = box;
     }
 
