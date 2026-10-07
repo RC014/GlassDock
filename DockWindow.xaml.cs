@@ -590,26 +590,35 @@ public partial class DockWindow : GlassWindow
         // Hiding: flatten at once rather than easing out during the slide (the bar shouldn't change while it moves).
         if (!IsSlidIn) _intensity = 0;
 
+        // The wave is a smooth bump of growth along the strip (a raised cosine reaching MagnifyRange icons each way
+        // from the cursor). Each slot - icon, Start button or the divider gap - grows by exactly the area of the bump
+        // over its own width (computed in closed form), so the growths add up to the area over the whole strip: while
+        // the bump lies inside the strip, the bar grows by the same amount on each side of the cursor wherever it is,
+        // and only shrinks when the bump runs past an end. (Sampling the bump at icon centres instead made the length
+        // wobble with uneven slot widths, and the bar sway as the cursor crossed each icon.)
         var slots = Slots();
         int n = slots.Count;
         var center = new double[n];
         var scale = new double[n];
         var ext = new double[n];
-        double total = 0, before = 0;
+        double k = (M - 1) * S * _intensity;            // growth of a slot one icon-width wide at the bump's peak
+        double Area(double u) => WaveArea((u - mouseX) / C);
+        double total = 0, before = 0, stripStart = 0, stripEnd = 0;
         for (int i = 0; i < n; i++)
         {
             var cell = slots[i].Cell;
-            center[i] = cell.TranslatePoint(new Point(cell.ActualWidth / 2, 0), IconStrip).X;
-            scale[i] = 1;
-            if (slots[i].Host == null) continue;
-            double d = (center[i] - mouseX) / C;
-            double f = Math.Abs(d) < MagnifyRange ? (1 + Math.Cos(Math.PI * d / MagnifyRange)) / 2 : 0;
-            scale[i] = 1 + (M - 1) * f * _intensity;
-            ext[i] = S * (scale[i] - 1);
+            double left = cell.TranslatePoint(new Point(-cell.Margin.Left, 0), IconStrip).X;
+            if (cell.RenderTransform is TranslateTransform own) left -= own.X; // the divider is moved by the wave itself: use its resting place
+            double right = left + cell.Margin.Left + cell.ActualWidth + cell.Margin.Right;
+            if (i == 0) stripStart = left;
+            stripEnd = right;
+            center[i] = (left + right) / 2;
+            ext[i] = k * (Area(right) - Area(left));
             total += ext[i];
-            // how much of this icon's growth lies left of the cursor: keeps the icon under the cursor in place
-            before += ext[i] * Math.Clamp((mouseX - (center[i] - C / 2)) / C, 0, 1);
+            scale[i] = slots[i].Host == null ? 1 : 1 + ext[i] / S;
         }
+        // growth left of the cursor (only the strip grows): keeps the icon under the cursor in place
+        if (n > 0) before = k * (Area(Math.Clamp(mouseX, stripStart, stripEnd)) - Area(stripStart));
 
         double cum = 0;
         int hovered = -1;
@@ -656,6 +665,18 @@ public partial class DockWindow : GlassWindow
             CompositionTarget.Rendering -= OnFrame;
             _magnifying = false;
         }
+    }
+
+    /// <summary>
+    /// Area under the wave's bump, f(t) = (1 + cos(πt/R)) / 2 for |t| &lt; R (t in icon widths from the cursor, R =
+    /// MagnifyRange), from -R up to <paramref name="t"/>, measured from the cursor: 0 at the cursor, -R/2 and +R/2 at
+    /// the bump's ends (the whole bump has area R).
+    /// </summary>
+    private static double WaveArea(double t)
+    {
+        const double R = MagnifyRange;
+        t = Math.Clamp(t, -R, R);
+        return (t + R / Math.PI * Math.Sin(Math.PI * t / R)) / 2;
     }
 
     // Transforms created by templates are frozen; give each element its own editable copy.
