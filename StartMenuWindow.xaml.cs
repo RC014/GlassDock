@@ -85,6 +85,9 @@ public partial class StartMenuWindow : Window
 
     private void Launched() => Dismiss();
 
+    /// <summary>Completes once the open or close animation (if any) has finished.</summary>
+    internal System.Threading.Tasks.Task WhenAnimationIdleAsync() => _anim.WhenIdleAsync();
+
     /// <summary>Debug (GLASSDOCK_DUMP): opens the menu and keeps it open.</summary>
     /// <summary>
     /// Builds and draws the menu once, off-screen and without taking focus, so the first real open doesn't stall

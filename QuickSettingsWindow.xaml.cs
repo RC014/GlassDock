@@ -134,13 +134,18 @@ public partial class QuickSettingsWindow : Window
         UpdateVolume();
         UpdateBattery();
         int? brightness = await Task.Run(SystemControls.GetBrightness); // WMI: slow, keep it off the UI thread
+        // Changing the contents mid-animation would make it redraw the whole panel then: apply the results once it's open.
+        await _anim.WhenIdleAsync();
         BrightnessRow.Visibility = brightness == null ? Visibility.Collapsed : Visibility.Visible;
         if (brightness != null) { _updating = true; BrightnessSlider.Value = brightness.Value; _updating = false; }
 
         _wifi ??= await SystemControls.GetRadioAsync(RadioKind.WiFi);
         _bluetooth ??= await SystemControls.GetRadioAsync(RadioKind.Bluetooth);
+        await _anim.WhenIdleAsync();
         UpdateToggles();
-        _btTile.Label = await SystemControls.ConnectedBluetoothDeviceAsync() ?? "Bluetooth";
+        string? device = await SystemControls.ConnectedBluetoothDeviceAsync();
+        await _anim.WhenIdleAsync();
+        _btTile.Label = device ?? "Bluetooth";
     }
 
     private void UpdateToggles()

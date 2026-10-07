@@ -125,14 +125,32 @@ internal sealed class PanelAnimation
         SetLayeredWindowAttributes(hwnd, 0, (byte)Math.Round(Alpha * 255), LWA_ALPHA);
     }
 
+    /// <summary>Longest step the animation takes in one frame: a slow frame pauses it instead of making it jump ahead.</summary>
+    private const double MaxStepMs = 1000 / 45.0;
+
+    private readonly System.Collections.Generic.List<System.Threading.Tasks.TaskCompletionSource> _idleWaiters = new();
+
+    /// <summary>Completes once the current open or close animation (if any) has finished.</summary>
+    public System.Threading.Tasks.Task WhenIdleAsync()
+    {
+        if (_frame == null) return System.Threading.Tasks.Task.CompletedTask;
+        var waiter = new System.Threading.Tasks.TaskCompletionSource();
+        _idleWaiters.Add(waiter);
+        return waiter.Task;
+    }
+
     private void Run(double ms, Action<double> step, Action? done)
     {
         Cache(true);
         _clock.Restart();
         step(0);
+        double elapsed = 0, last = 0;
         _frame = (_, _) =>
         {
-            double t = Math.Min(1, _clock.Elapsed.TotalMilliseconds / ms);
+            double now = _clock.Elapsed.TotalMilliseconds;
+            elapsed += Math.Min(now - last, MaxStepMs);
+            last = now;
+            double t = Math.Min(1, elapsed / ms);
             step(t);
             if (t < 1) return;
             Stop();
@@ -147,5 +165,8 @@ internal sealed class PanelAnimation
         CompositionTarget.Rendering -= _frame;
         _frame = null;
         Cache(false);
+        var waiters = _idleWaiters.ToArray();
+        _idleWaiters.Clear();
+        foreach (var w in waiters) w.TrySetResult();
     }
 }

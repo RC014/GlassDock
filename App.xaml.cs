@@ -164,9 +164,19 @@ public partial class App : Application
         {
             _startMenu ??= new StartMenuWindow();
             _startMenu.Toggle();
-            if (_startMenu.IsVisible) _dockHide?.Reveal(TimeSpan.FromSeconds(0.5));
+            if (_startMenu.IsVisible) _ = RevealDockUnderStartAsync(_startMenu);
         }
         catch (Exception ex) { Log(ex); }
+    }
+
+    /// <summary>
+    /// Shows the dock under the open Start menu - once the menu has finished opening: the dock's slide drawn at the
+    /// same time as the menu's animation would make the menu stutter.
+    /// </summary>
+    private static async System.Threading.Tasks.Task RevealDockUnderStartAsync(StartMenuWindow menu)
+    {
+        await menu.WhenAnimationIdleAsync();
+        if (menu.IsVisible) _dockHide?.Reveal(TimeSpan.FromSeconds(0.5));
     }
 
     /// <summary>Shows the glass volume indicator with the current level (volume keys, scrolling on the status bar).</summary>
