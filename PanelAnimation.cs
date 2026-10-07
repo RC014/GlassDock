@@ -1,38 +1,49 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
-using GlassDock.Interop;
 
 namespace GlassDock;
 
 /// <summary>
-/// Open / close animation for the glass panels (Start menu, Quick Settings). The window itself never moves: the
-/// whole panel fades in where it rests (Windows fades the window, a layered window with constant alpha composed by
-/// DWM, so glass, shadow and rounded corners fade together) while its contents rise into place; closing fades it
-/// out while the contents sink a little. Keeping the window still keeps the glass's picture of the screen behind it
-/// exact on every frame (a moving window is redrawn a frame after Windows moves it, so its glass would lag).
+/// Open / close animation for the glass panels (Start menu, Quick Settings). The window and its glass stay put
+/// (so the glass's picture of the screen behind it is exact on every frame); the contents rise into place while
+/// fading in, and sink a little while fading out before the panel goes away.
+/// <para>
+/// A panel is shown cloaked (hidden by DWM) and revealed only after WPF has drawn a fresh frame: otherwise Windows
+/// briefly shows whatever the window drew last time it was visible (after the start-up prewarm, a black glass).
+/// </para>
+/// <para>
+/// The glass stays cached as a bitmap while the panel is open, so hovering, scrolling or typing only redraws the
+/// contents, not the refraction shaders underneath (which re-run only when the screen behind actually changes).
+/// </para>
 /// </summary>
 internal sealed class PanelAnimation
 {
     private const double Rise = 18, Sink = 12;      // DIPs
     private const double OpenMs = 200, CloseMs = 140;
+    /// <summary>Longest step the animation takes in one frame: a slow frame pauses it instead of making it jump ahead.</summary>
+    private const double MaxStepMs = 1000 / 45.0;
+    /// <summary>Frames to wait after showing a panel before revealing it (the first one has been drawn by then).</summary>
+    private const int RevealAfterFrames = 2;
 
-    [DllImport("user32.dll")] private static extern bool SetLayeredWindowAttributes(IntPtr h, uint key, byte alpha, uint flags);
-    private const int WS_EX_LAYERED = 0x80000;
-    private const uint LWA_ALPHA = 2;
+    [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    private const int DWMWA_CLOAK = 13;
 
     private readonly Window _window;
-    private readonly TranslateTransform _shift = new();
-    private readonly Stopwatch _clock = new();
-    private EventHandler? _frame;
-
     private readonly UIElement _body;
     private readonly GlassSurface _glass;
+    private readonly TranslateTransform _shift = new();
+    private readonly Stopwatch _clock = new();
+    private readonly List<TaskCompletionSource> _idleWaiters = new();
+    private EventHandler? _frame;
+    private bool _cloaked;
 
-    /// <param name="body">The panel's contents (everything above the glass), which slide.</param>
+    /// <param name="body">The panel's contents (everything above the glass), which slide and fade.</param>
     /// <param name="glass">The panel's glass, which stays put.</param>
     public PanelAnimation(Window window, UIElement body, GlassSurface glass)
     {
@@ -40,18 +51,8 @@ internal sealed class PanelAnimation
         _body = body;
         _glass = glass;
         body.RenderTransform = _shift;
-    }
-
-    /// <summary>
-    /// While animating, the glass and the contents are each drawn once into a cached bitmap, so a frame only moves
-    /// the contents' bitmap and fades the window instead of redrawing text, icons and the refraction shaders.
-    /// </summary>
-    private void Cache(bool on)
-    {
-        double scale = VisualTreeHelper.GetDpi(_window).DpiScaleX;
-        _body.CacheMode = on ? new BitmapCache(scale) : null;
-        _glass.CacheMode = on ? new BitmapCache(scale) : null;
-        _glass.IsAnimating = on;
+        window.SourceInitialized += (_, _) => CacheGlass();
+        window.DpiChanged += (_, _) => CacheGlass();
     }
 
     /// <summary>True while an open or close animation runs.</summary>
@@ -66,91 +67,76 @@ internal sealed class PanelAnimation
         Stop();
         IsClosing = false;
         _window.Top = top;
-        if (Settings.Current.LowPowerMode)
+        if (!_window.IsVisible)
         {
-            SetAlpha(1);
-            _shift.Y = 0;
-            if (!_window.IsVisible) _window.Show();
-            return;
+            SetCloaked(true);
+            _body.Opacity = 0;
+            _shift.Y = Rise;
+            _window.Show();
         }
-        bool wasVisible = _window.IsVisible;
-        double startAlpha = wasVisible ? Alpha : 0, startY = wasVisible ? _shift.Y : Rise;
-        SetAlpha(startAlpha);
-        _shift.Y = startY;
-        if (!wasVisible) _window.Show();
-        Run(OpenMs, t =>
+        double startOpacity = _body.Opacity, startY = _shift.Y;
+        Run(Settings.Current.LowPowerMode ? 0 : OpenMs, t =>
         {
             double e = 1 - Math.Pow(1 - t, 3); // ease-out
             _shift.Y = startY * (1 - e);
-            SetAlpha(startAlpha + (1 - startAlpha) * e);
+            _body.Opacity = startOpacity + (1 - startOpacity) * e;
         }, null);
     }
 
-    /// <summary>Fades the window out while its contents sink, then hides it.</summary>
+    /// <summary>Fades the contents out while they sink, then hides the window.</summary>
     public void Hide(Action? hidden = null)
     {
         if (!_window.IsVisible || IsClosing) return;
         Stop();
-        if (Settings.Current.LowPowerMode)
+        void Finish()
         {
             _window.Hide();
+            _shift.Y = 0;
+            _body.Opacity = 1;
+            IsClosing = false;
             hidden?.Invoke();
-            return;
         }
+        if (Settings.Current.LowPowerMode) { Finish(); return; }
         IsClosing = true;
-        double startAlpha = Alpha, startY = _shift.Y;
+        double startOpacity = _body.Opacity, startY = _shift.Y;
         Run(CloseMs, t =>
         {
             double e = t * t; // ease-in
             _shift.Y = startY + (Sink - startY) * e;
-            SetAlpha(startAlpha * (1 - e));
-        }, () =>
-        {
-            _window.Hide();
-            _shift.Y = 0;
-            SetAlpha(1);
-            IsClosing = false;
-            hidden?.Invoke();
-        });
+            _body.Opacity = startOpacity * (1 - e);
+        }, Finish);
     }
-
-    private double Alpha { get; set; } = 1;
-
-    private void SetAlpha(double a)
-    {
-        Alpha = Math.Clamp(a, 0, 1);
-        var hwnd = new WindowInteropHelper(_window).EnsureHandle();
-        int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
-        if ((ex & WS_EX_LAYERED) == 0) Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | WS_EX_LAYERED);
-        SetLayeredWindowAttributes(hwnd, 0, (byte)Math.Round(Alpha * 255), LWA_ALPHA);
-    }
-
-    /// <summary>Longest step the animation takes in one frame: a slow frame pauses it instead of making it jump ahead.</summary>
-    private const double MaxStepMs = 1000 / 45.0;
-
-    private readonly System.Collections.Generic.List<System.Threading.Tasks.TaskCompletionSource> _idleWaiters = new();
 
     /// <summary>Completes once the current open or close animation (if any) has finished.</summary>
-    public System.Threading.Tasks.Task WhenIdleAsync()
+    public Task WhenIdleAsync()
     {
-        if (_frame == null) return System.Threading.Tasks.Task.CompletedTask;
-        var waiter = new System.Threading.Tasks.TaskCompletionSource();
+        if (_frame == null) return Task.CompletedTask;
+        var waiter = new TaskCompletionSource();
         _idleWaiters.Add(waiter);
         return waiter.Task;
     }
 
     private void Run(double ms, Action<double> step, Action? done)
     {
-        Cache(true);
-        _clock.Restart();
+        // While animating, the contents are cached too (a frame then only moves and fades their bitmap), and the
+        // glass takes no new screen samples (so its cached bitmap stays valid).
+        _body.CacheMode = new BitmapCache(VisualTreeHelper.GetDpi(_window).DpiScaleX);
+        _glass.IsAnimating = true;
         step(0);
-        double elapsed = 0, last = 0;
+        int waitFrames = _cloaked ? RevealAfterFrames : 0;
+        double elapsed = 0, last = -1;
         _frame = (_, _) =>
         {
+            if (waitFrames > 0)
+            {
+                if (--waitFrames == 0) SetCloaked(false);
+                return;
+            }
+            if (last < 0) { _clock.Restart(); last = 0; } // the animation starts once the panel is on screen
             double now = _clock.Elapsed.TotalMilliseconds;
             elapsed += Math.Min(now - last, MaxStepMs);
             last = now;
-            double t = Math.Min(1, elapsed / ms);
+            double t = ms <= 0 ? 1 : Math.Min(1, elapsed / ms);
             step(t);
             if (t < 1) return;
             Stop();
@@ -164,9 +150,20 @@ internal sealed class PanelAnimation
         if (_frame == null) return;
         CompositionTarget.Rendering -= _frame;
         _frame = null;
-        Cache(false);
+        _body.CacheMode = null;
+        _glass.IsAnimating = false;
         var waiters = _idleWaiters.ToArray();
         _idleWaiters.Clear();
         foreach (var w in waiters) w.TrySetResult();
+    }
+
+    private void CacheGlass() => _glass.CacheMode = new BitmapCache(VisualTreeHelper.GetDpi(_window).DpiScaleX);
+
+    private void SetCloaked(bool on)
+    {
+        var hwnd = new WindowInteropHelper(_window).EnsureHandle();
+        int value = on ? 1 : 0;
+        DwmSetWindowAttribute(hwnd, DWMWA_CLOAK, ref value, sizeof(int));
+        _cloaked = on;
     }
 }
