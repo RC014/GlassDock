@@ -19,7 +19,14 @@ internal sealed class DockItem : INotifyPropertyChanged
     public string? ExePath { get; set; }
     public string? AppUserModelId { get; set; }
 
+    /// <summary>For pinned launcher shortcuts: .exe file names in the shortcut's arguments ("--processStart App.exe").</summary>
+    public HashSet<string> LaunchHints { get; } = new(System.StringComparer.OrdinalIgnoreCase);
+
     public List<ApplicationWindow> Windows { get; } = new();
+
+    private int _windowCount;
+    /// <summary>Open windows, capped at 4: one indicator dot each.</summary>
+    public int WindowCount { get => _windowCount; set => Set(ref _windowCount, value); }
 
     private string _name = "";
     public string Name { get => _name; set => Set(ref _name, value); }

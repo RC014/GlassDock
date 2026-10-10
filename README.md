@@ -60,7 +60,8 @@ The bars stay hidden and float over your windows; they never take screen space a
 - **Hover** over the icons to magnify them in a wave and see the app's name. Hover a running app for a moment to see **live previews** of its windows: click a preview to switch to that window, or its × to close it.
 - **Right-click** an app for its window list, New window, Keep in Dock / Remove from Dock, Show in File Explorer, Close and GlassDock settings.
 - **Drag** any icon to move it; the other icons slide aside to show where it will land. Drag a running app onto the pinned side (left of the divider) to pin it there. Drag a pinned icon up off the dock and let go to remove it. Drop an `.exe` or `.lnk` file onto the dock to pin it.
-- A dot under an icon means the app is running, a wide bar means it's the active window, and an orange dot means the app wants your attention.
+- Dots under an icon show the app is running, one dot per open window (up to four). They get wider when the app is active (a single window shows a long bar), and turn orange when the app wants your attention.
+- A running app shows on its pinned icon even when the pin is a launcher or Start-menu shortcut rather than the program itself (for example apps that start through `Update.exe`, or that moved to a new version folder after an update). If an app still gets a second icon, click its pinned icon once while it's closed: GlassDock remembers which program that icon starts.
 - The **Windows button** on the left opens the Start menu (see below); right-click it for the GlassDock menu.
 
 ## Start menu

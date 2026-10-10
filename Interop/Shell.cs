@@ -172,6 +172,29 @@ internal static class Shell
         catch { return null; }
     }
 
+    /// <summary>
+    /// The file a shell item points to (System.Link.TargetParsingPath), e.g. the .exe behind a desktop app's entry in
+    /// the Applications folder ("shell:AppsFolder\&lt;id&gt;"). Null if it has none (Store apps, web links...).
+    /// </summary>
+    public static string? GetLinkTarget(string parsingName)
+    {
+        try
+        {
+            Guid iid = typeof(IPropertyStore).GUID;
+            if (SHGetPropertyStoreFromParsingName(parsingName, IntPtr.Zero, 0 /*GPS_DEFAULT*/, ref iid, out IPropertyStore store) != 0) return null;
+            try
+            {
+                var key = PKEY_Link_TargetParsingPath;
+                if (store.GetValue(ref key, out PROPVARIANT pv) != 0) return null;
+                string? target = pv.vt == 31 /* VT_LPWSTR */ ? Marshal.PtrToStringUni(pv.ptr) : null;
+                PropVariantClear(ref pv);
+                return string.IsNullOrEmpty(target) ? null : target;
+            }
+            finally { Marshal.ReleaseComObject(store); }
+        }
+        catch { return null; }
+    }
+
     // ---- COM definitions ----
     private const int SIIGBF_BIGGERSIZEOK = 0x1, SIIGBF_ICONONLY = 0x4;
     private const uint SIGDN_NORMALDISPLAY = 0;
@@ -226,6 +249,10 @@ internal static class Shell
     private struct PROPERTYKEY { public Guid fmtid; public uint pid; }
 
     private static readonly PROPERTYKEY PKEY_AppUserModel_ID = new() { fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), pid = 5 };
+    private static readonly PROPERTYKEY PKEY_Link_TargetParsingPath = new() { fmtid = new Guid("B9B4B3FC-2B51-4A42-B5D8-324146AFCF25"), pid = 2 };
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHGetPropertyStoreFromParsingName(string path, IntPtr pbc, int flags, ref Guid riid, out IPropertyStore store);
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
     private struct PROPVARIANT

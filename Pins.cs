@@ -50,6 +50,9 @@ internal static class Pins
         if (path.StartsWith(AppsFolder, StringComparison.OrdinalIgnoreCase))
         {
             item.AppUserModelId = path.Substring(AppsFolder.Length);
+            // A desktop app's entry also knows its .exe: match its windows by that too (many apps don't tag their
+            // windows with the entry's id).
+            if (Shell.GetLinkTarget(path) is { } t && t.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) item.ExePath = t;
         }
         else if (path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
         {
@@ -57,6 +60,10 @@ internal static class Pins
             if (link?.TargetPath is { } t && t.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) item.ExePath = t;
             item.AppUserModelId = link?.AppUserModelId;
             item.Name = Path.GetFileNameWithoutExtension(path);
+            // a launcher's arguments often name the program it starts ("Update.exe --processStart Discord.exe")
+            if (link?.Arguments is { Length: > 0 } args)
+                foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(args, @"[^\s""\\/]+\.exe", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                    item.LaunchHints.Add(m.Value);
         }
         else
         {
@@ -104,13 +111,134 @@ internal static class Pins
         return item;
     }
 
-    public static bool Matches(DockItem pin, ApplicationWindow w)
+    /// <summary>
+    /// Whether a window belongs to a pinned item, so it shows on the pinned icon rather than as a second icon. Tried in
+    /// order: same app id; same .exe (even for windows Windows reports as modern apps, like Windows 11's File
+    /// Explorer); an .exe learned for this pin (see <see cref="Settings.PinAliases"/>); the same program installed in
+    /// another version folder; and the program a pinned launcher starts.
+    /// </summary>
+    public static bool Matches(DockItem pin, ApplicationWindow w) => Matches(pin, w.AppUserModelID, w.WinFileName, w.WinFileDescription);
+
+    internal static bool Matches(DockItem pin, string? windowAumid, string? exe, string? description)
     {
-        if (pin.AppUserModelId != null && string.Equals(pin.AppUserModelId, w.AppUserModelID, StringComparison.OrdinalIgnoreCase))
+        if (pin.AppUserModelId != null && string.Equals(pin.AppUserModelId, windowAumid, StringComparison.OrdinalIgnoreCase))
             return true;
-        // Same exe, even for windows Windows reports as modern/immersive apps (Windows 11's File Explorer is one).
-        return pin.ExePath != null && string.Equals(pin.ExePath, w.WinFileName, StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(exe)) return false;
+        if (pin.ExePath != null && SamePath(pin.ExePath, exe)) return true;
+        if (pin.PinPath != null && Settings.Current.PinAliases.TryGetValue(exe.ToLowerInvariant(), out var aliasOf)
+            && string.Equals(aliasOf, pin.PinPath, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (pin.ExePath == null || IsExplorer(exe)) return false;
+
+        string pinFile = Path.GetFileName(pin.ExePath), runFile = Path.GetFileName(exe);
+        if (string.Equals(pinFile, runFile, StringComparison.OrdinalIgnoreCase))
+        {
+            // the same program, updated into a new version folder (...\App\app-1.0\App.exe vs ...\App\app-1.1\App.exe)
+            if (InVersionFolders(pin.ExePath, exe)) return true;
+            // or the same product installed elsewhere
+            var a = ProductOf(pin.ExePath);
+            var b = ProductOf(exe);
+            if (a.Product.Length > 0 && a == b) return true;
+        }
+
+        // A pinned launcher (Update.exe, a "Launcher.exe"...) starting the real program from inside its own folder:
+        // only when the shortcut names that program or the names agree, so e.g. games don't merge into a pinned Steam.
+        string? pinDir = Path.GetDirectoryName(pin.ExePath);
+        if (pinDir != null && !IsBroadFolder(pinDir) && IsUnder(exe, pinDir)
+            && (pin.LaunchHints.Contains(runFile) || NamesAgree(pin.Name, exe, description)))
+            return true;
+        return false;
     }
+
+    private static bool SamePath(string a, string b) =>
+        string.Equals(Normalize(a), Normalize(b), StringComparison.OrdinalIgnoreCase);
+
+    private static string Normalize(string path)
+    {
+        try { return Path.GetFullPath(Environment.ExpandEnvironmentVariables(path)).TrimEnd('\\'); }
+        catch { return path; }
+    }
+
+    private static bool IsUnder(string file, string folder)
+    {
+        string f = Normalize(file), d = Normalize(folder) + "\\";
+        return f.StartsWith(d, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Both in sibling folders with a version-like name (containing a digit) under the same parent.</summary>
+    private static bool InVersionFolders(string a, string b)
+    {
+        string? da = Path.GetDirectoryName(Normalize(a)), db = Path.GetDirectoryName(Normalize(b));
+        if (da == null || db == null) return false;
+        string? pa = Path.GetDirectoryName(da), pb = Path.GetDirectoryName(db);
+        return pa != null && string.Equals(pa, pb, StringComparison.OrdinalIgnoreCase)
+            && Path.GetFileName(da).Any(char.IsDigit) && Path.GetFileName(db).Any(char.IsDigit)
+            && !IsBroadFolder(pa);
+    }
+
+    /// <summary>Folders too general to say two programs belong together (Windows, Program Files, AppData...).</summary>
+    private static bool IsBroadFolder(string folder)
+    {
+        string f = Normalize(folder);
+        return BroadFolders.Value.Contains(f) || Path.GetPathRoot(f)?.TrimEnd('\\') == f;
+    }
+
+    private static readonly Lazy<System.Collections.Generic.HashSet<string>> BroadFolders = new(() =>
+    {
+        var set = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var special in new[]
+        {
+            Environment.SpecialFolder.Windows, Environment.SpecialFolder.System, Environment.SpecialFolder.SystemX86,
+            Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86,
+            Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolder.ApplicationData,
+            Environment.SpecialFolder.UserProfile, Environment.SpecialFolder.CommonApplicationData,
+        })
+        {
+            string s = Environment.GetFolderPath(special);
+            if (s.Length > 0) set.Add(Normalize(s));
+        }
+        set.Add(Normalize(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs")));
+        return set;
+    });
+
+    /// <summary>The pin's name and the program's (file description, product name or file name) are the same word.</summary>
+    private static bool NamesAgree(string pinName, string exe, string? description)
+    {
+        string pin = Simplify(pinName);
+        if (pin.Length < 3) return false;
+        foreach (var candidate in new[] { description, ProductOf(exe).Product, Path.GetFileNameWithoutExtension(exe) })
+        {
+            string c = Simplify(candidate);
+            if (c.Length < 3) continue;
+            if (c == pin || (Math.Min(c.Length, pin.Length) >= 4 && (c.Contains(pin) || pin.Contains(c)))) return true;
+        }
+        return false;
+    }
+
+    private static string Simplify(string? s) => new((s ?? "").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    private static readonly System.Collections.Generic.Dictionary<string, (string Product, string Company)> Products = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The program's product and company names from its version info (cached; empty if it has none).</summary>
+    private static (string Product, string Company) ProductOf(string? exe)
+    {
+        if (string.IsNullOrEmpty(exe)) return ("", "");
+        if (Products.TryGetValue(exe, out var cached)) return cached;
+        (string, string) result = ("", "");
+        try
+        {
+            var v = FileVersionInfo.GetVersionInfo(exe);
+            result = ((v.ProductName ?? "").Trim(), (v.CompanyName ?? "").Trim());
+        }
+        catch { }
+        Products[exe] = result;
+        return result;
+    }
+
+    /// <summary>Whether this program may be learned as belonging to a pin (not Windows' own shell processes).</summary>
+    public static bool CanLearn(ApplicationWindow w) =>
+        !w.IsUWP && !string.IsNullOrEmpty(w.WinFileName) && !IsExplorer(w.WinFileName)
+        && !Normalize(w.WinFileName).StartsWith(Normalize(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) + "\\", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The path to store in settings when pinning a running app.</summary>
     public static string? PinPathFor(DockItem running)

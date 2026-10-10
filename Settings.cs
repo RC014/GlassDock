@@ -78,6 +78,13 @@ internal sealed class Settings
         "Microsoft.WindowsStore_8wekyb3d8bbwe!App",
     };
 
+    /// <summary>
+    /// Learned app identities: an .exe (lower-case path) that belongs to a pinned item (its settings entry), for apps
+    /// whose shortcut starts a launcher (e.g. Update.exe) rather than the app itself. Learned when a pinned item is
+    /// clicked and that program's first window appears.
+    /// </summary>
+    public Dictionary<string, string> PinAliases { get; set; } = new();
+
     /// <summary>Internal: set once the user's existing taskbar pins were imported.</summary>
     public bool ImportedTaskbarPins { get; set; }
 
@@ -102,6 +109,7 @@ internal sealed class Settings
         }
         catch (Exception ex) { App.Log(ex); Current = new Settings(); }
         Current.StartPins ??= new();
+        Current.PinAliases ??= new();
         Current.IconSize = Math.Clamp(Current.IconSize, 24, 96);
         Current.Magnification = Math.Clamp(Current.Magnification, 1, 2.5);
         Current.MediaPlayerWidth = Math.Clamp(Current.MediaPlayerWidth, 200, 600);

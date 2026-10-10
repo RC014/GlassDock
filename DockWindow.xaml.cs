@@ -114,7 +114,7 @@ public partial class DockWindow : GlassWindow
         var order = new List<DockItem>();
         foreach (var w in visible)
         {
-            var pin = _pinned.FirstOrDefault(p => Pins.Matches(p, w));
+            var pin = _pinned.FirstOrDefault(p => Pins.Matches(p, w)) ?? LearnFromLaunch(w);
             if (pin != null) { pin.Windows.Add(w); continue; }
 
             string key = Pins.KeyFor(w);
@@ -136,6 +136,7 @@ public partial class DockWindow : GlassWindow
         {
             item.Windows.Sort((a, b) => LastActive(b).CompareTo(LastActive(a)));
             item.IsRunning = item.Windows.Count > 0;
+            item.WindowCount = Math.Min(item.Windows.Count, 4);
             item.IsActive = item.Windows.Any(w => w.State == ApplicationWindow.WindowState.Active);
             item.IsFlashing = item.Windows.Any(w => w.State == ApplicationWindow.WindowState.Flashing);
             if (item.IsRunning) item.IsLaunching = false;
@@ -145,6 +146,32 @@ public partial class DockWindow : GlassWindow
     }
 
     private long LastActive(ApplicationWindow w) => _lastActivated.TryGetValue(w.Handle, out var t) ? t : 0;
+
+    /// <summary>A pinned item just clicked while it wasn't running, and when (see <see cref="LearnFromLaunch"/>).</summary>
+    private (DockItem Item, DateTime At)? _pendingLaunch;
+
+    /// <summary>
+    /// Some pinned shortcuts start a launcher that then runs the real program (Update.exe → App.exe, Launcher.exe →
+    /// Game.exe...), whose windows match nothing. When a pinned item was clicked in the last half minute, isn't
+    /// running yet, and a window appears whose program started after the click and matches no other pin, that
+    /// program is remembered as belonging to the pin, so its windows show on the pinned icon from now on.
+    /// </summary>
+    private DockItem? LearnFromLaunch(ApplicationWindow w)
+    {
+        if (_pendingLaunch is not { } launch || (DateTime.Now - launch.At).TotalSeconds > 30) return null;
+        var pin = launch.Item;
+        if (!_pinned.Contains(pin) || pin.Windows.Count > 0 || pin.PinPath == null || !Pins.CanLearn(w)) return null;
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(Convert.ToInt32(w.ProcId));
+            if (process.StartTime < launch.At.AddSeconds(-2)) return null; // was already running: not what the click started
+        }
+        catch { return null; } // gone, or not ours to inspect (elevated)
+        Settings.Current.PinAliases[w.WinFileName.ToLowerInvariant()] = pin.PinPath;
+        Settings.Save();
+        _pendingLaunch = null;
+        return pin;
+    }
 
     // ---------------- clicks ----------------
 
@@ -210,6 +237,7 @@ public partial class DockWindow : GlassWindow
 
     private async void LaunchWithBounce(DockItem item)
     {
+        if (item.IsPinned && item.Windows.Count == 0) _pendingLaunch = (item, DateTime.Now);
         Pins.Launch(item);
         item.IsLaunching = true;
         await Task.Delay(1400);
@@ -441,6 +469,10 @@ public partial class DockWindow : GlassWindow
     private void Unpin(DockItem item)
     {
         _pinned.Remove(item);
+        // forget the programs learned for it
+        if (item.PinPath != null)
+            foreach (var exe in Settings.Current.PinAliases.Where(a => string.Equals(a.Value, item.PinPath, StringComparison.OrdinalIgnoreCase)).Select(a => a.Key).ToList())
+                Settings.Current.PinAliases.Remove(exe);
         SavePinOrder();
         Rebuild();
     }

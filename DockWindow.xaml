@@ -4,6 +4,28 @@
                    xmlns:local="clr-namespace:GlassDock"
                    Title="GlassDock" AllowDrop="True">
     <Window.Resources>
+        <!-- One dot per open window under a running app (up to 4): wider while the app is active, orange when it
+             wants attention. -->
+        <Style x:Key="IndicatorDot" TargetType="Rectangle">
+            <Setter Property="Width" Value="4" />
+            <Setter Property="Height" Value="4" />
+            <Setter Property="RadiusX" Value="2" />
+            <Setter Property="RadiusY" Value="2" />
+            <Setter Property="Fill" Value="{DynamicResource Indicator}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                    <Setter Property="Width" Value="7" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsFlashing}" Value="True">
+                    <Setter Property="Width" Value="5" />
+                    <Setter Property="Height" Value="5" />
+                    <Setter Property="RadiusX" Value="2.5" />
+                    <Setter Property="RadiusY" Value="2.5" />
+                    <Setter Property="Fill" Value="#FFFF9F0A" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- Each icon lives in an "IconHost" whose scale/offset the magnifier drives every frame. -->
         <DataTemplate x:Key="DockItemTemplate">
             <Grid x:Name="Cell" Margin="3,0"
@@ -24,13 +46,16 @@
                            RenderOptions.BitmapScalingMode="HighQuality" />
 
                 </Border>
-                <Rectangle x:Name="Dot" Grid.Row="1" Width="4" Height="4" RadiusX="2" RadiusY="2"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Fill="{DynamicResource Indicator}" Opacity="0">
-                    <Rectangle.RenderTransform>
+                <StackPanel x:Name="Dot" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Opacity="0">
+                    <StackPanel.RenderTransform>
                         <TranslateTransform />
-                    </Rectangle.RenderTransform>
-                </Rectangle>
+                    </StackPanel.RenderTransform>
+                    <Rectangle x:Name="Dot1" Style="{StaticResource IndicatorDot}" />
+                    <Rectangle x:Name="Dot2" Style="{StaticResource IndicatorDot}" Margin="3,0,0,0" Visibility="Collapsed" />
+                    <Rectangle x:Name="Dot3" Style="{StaticResource IndicatorDot}" Margin="3,0,0,0" Visibility="Collapsed" />
+                    <Rectangle x:Name="Dot4" Style="{StaticResource IndicatorDot}" Margin="3,0,0,0" Visibility="Collapsed" />
+                </StackPanel>
             </Grid>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding IsRunning}" Value="True">
@@ -38,16 +63,32 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsActive}" Value="True">
                     <Setter TargetName="Dot" Property="Opacity" Value="1" />
-                    <Setter TargetName="Dot" Property="Width" Value="14" />
+                </DataTrigger>
+                <!-- one window and active: the familiar long bar -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsActive}" Value="True" />
+                        <Condition Binding="{Binding WindowCount}" Value="1" />
+                        <Condition Binding="{Binding IsFlashing}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter TargetName="Dot1" Property="Width" Value="14" />
+                </MultiDataTrigger>
+                <!-- one dot per open window -->
+                <DataTrigger Binding="{Binding WindowCount}" Value="2">
+                    <Setter TargetName="Dot2" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding WindowCount}" Value="3">
+                    <Setter TargetName="Dot2" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Dot3" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding WindowCount}" Value="4">
+                    <Setter TargetName="Dot2" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Dot3" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Dot4" Property="Visibility" Value="Visible" />
                 </DataTrigger>
                 <!-- App wants attention: orange indicator instead of bouncing -->
                 <DataTrigger Binding="{Binding IsFlashing}" Value="True">
                     <Setter TargetName="Dot" Property="Opacity" Value="1" />
-                    <Setter TargetName="Dot" Property="Width" Value="6" />
-                    <Setter TargetName="Dot" Property="Height" Value="6" />
-                    <Setter TargetName="Dot" Property="RadiusX" Value="3" />
-                    <Setter TargetName="Dot" Property="RadiusY" Value="3" />
-                    <Setter TargetName="Dot" Property="Fill" Value="#FFFF9F0A" />
                 </DataTrigger>
 
                 <!-- Small hop while an app is launching -->
