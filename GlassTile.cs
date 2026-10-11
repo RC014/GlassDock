@@ -35,6 +35,13 @@ public class GlassTile : Grid
         set => Glass.BandScale = value;
     }
 
+    /// <summary>A fixed width (DIPs) for this glass's refracting edge, instead of its corner rounding; 0 = none.</summary>
+    public double BandWidth
+    {
+        get => Glass.BandWidth;
+        set => Glass.BandWidth = value;
+    }
+
     /// <summary>Points every tile inside <paramref name="body"/> at the panel's backdrop (see <see cref="GlassSurface.ShareFrom"/>).</summary>
     internal static void ConnectAll(GlassSurface backdrop, FrameworkElement body)
     {

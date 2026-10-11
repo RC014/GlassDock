@@ -101,6 +101,9 @@ public sealed class GlassSurface : Grid
     /// <summary>Scales the width of the refracting band (1 = normal; smaller for big panels such as the Start menu).</summary>
     public double BandScale { get; set; } = 1;
 
+    /// <summary>A fixed width (DIPs) for the refracting edge instead of the corner rounding (big panels); 0 = none.</summary>
+    public double BandWidth { get; set; }
+
     // ---------------- panels made of separate pieces of glass ----------------
     // A panel window (Start menu, Quick Settings) is filled by a backdrop: the screen behind the window, shown as
     // it is, so the window itself disappears. The panel's pieces of glass (GlassTile) all refract that same
@@ -172,7 +175,7 @@ public sealed class GlassSurface : Grid
             double minDim = Math.Min(ActualWidth, ActualHeight);
             // (The bevel must follow the visible corners: wider than their rounding, lines near a corner would be pushed
             // towards a rounder, imaginary corner instead of curving along the real one. Big glass gets bigger rounding.)
-            double band = Math.Clamp(Math.Max(r, 16) * Settings.Current.RefractionEdge * BandScale, 2, minDim / 2);
+            double band = Math.Clamp((BandWidth > 0 ? BandWidth : Math.Max(r, 16)) * Settings.Current.RefractionEdge * BandScale, 2, minDim / 2);
             double radius = Math.Min(Math.Max(r, band), minDim / 2);
             _lens.Band = _blurHEffect.Band = _blurVEffect.Band = band / ActualHeight;
             _lens.Radius = _blurHEffect.Radius = _blurVEffect.Radius = radius / ActualHeight;
