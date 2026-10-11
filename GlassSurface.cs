@@ -99,12 +99,12 @@ public sealed class GlassSurface : Grid
         {
             double aspect = ActualWidth / ActualHeight;
             _lens.Aspect = _blurHEffect.Aspect = _blurVEffect.Aspect = aspect;
-            // The rounded bevel along the rim is about as wide as the glass's corner rounding (at least 22 DIPs, at
+            // The rounded bevel along the rim is about as wide as the glass's corner rounding (at least 16 DIPs, at
             // most half the short side, so a pill-shaped bar is curved right across); RefractionEdge (bevel width)
             // and BandScale narrow it. Its rounded rectangle uses at least the bevel width as corner radius, so the
             // bending turns smoothly round the corners.
             double minDim = Math.Min(ActualWidth, ActualHeight);
-            double band = Math.Clamp(Math.Max(r, 22) * Settings.Current.RefractionEdge * BandScale, 2, minDim / 2);
+            double band = Math.Clamp(Math.Max(r, 16) * Settings.Current.RefractionEdge * BandScale, 2, minDim / 2);
             double radius = Math.Min(Math.Max(r, band), minDim / 2);
             _lens.Band = _blurHEffect.Band = _blurVEffect.Band = band / ActualHeight;
             _lens.Radius = _blurHEffect.Radius = _blurVEffect.Radius = radius / ActualHeight;

@@ -117,7 +117,7 @@ Menus close by themselves when you move the cursor away from them.
 | `CornerRadius` | 19 | Roundness of the bubbles |
 | `Refraction` | true | Real glass refraction of the background (see the note on screenshots below) |
 | `RefractionStrength` | 0.8 | How strongly the glass's rounded edge bends the background (0–1): gently where the edge starts curving, strongly right at the rim, with a faint rainbow fringe |
-| `RefractionEdge` | 1 | Width of the rounded edge (bevel), relative to the glass's corner rounding: at 1 it's as wide as the rounding (at least 22 DIPs; a pill-shaped bar is curved right across), smaller values give a thinner edge |
+| `RefractionEdge` | 1 | Width of the rounded edge (bevel), relative to the glass's corner rounding: at 1 it's as wide as the rounding (at least 16 DIPs, at most half the bar height), smaller values give a thinner edge |
 | `RefractionBlur` | 0.35 | Blur seen through the glass (0–1): none at the rim, growing towards the centre |
 | `RefractionFps` | 20 | How many times a second the glass updates what's behind it (5–60; lower = lighter on the PC) |
 | `LowPowerMode` | false | For weaker PCs: no open/close animations on the Start menu and Quick Settings, and the glass updates only 5 times a second |

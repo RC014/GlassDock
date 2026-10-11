@@ -1,11 +1,12 @@
 // Glass refraction for GlassDock (WPF ShaderEffect, ps_2_0). First pass; Blur.fx softens it afterwards.
-// The input is the screen area behind a piece of glass. The glass is modelled as a slab whose rim is a rounded
-// bevel (a quarter-circle profile, `band` wide): looking straight through, the flat middle shows the background
-// undistorted, while over the bevel the light is bent towards the inside - gently at first, then very strongly
-// at the rim, where the surface turns vertical. That pulls the background just inside the glass out along the
-// edge, so lines and shapes passing under the rim visibly wrap around it.
-//  - the amount follows the bevel's sag, 1 - sqrt(1 - u^2) (u = 0 where the bevel starts, 1 at the rim);
-//  - red, green and blue bend slightly differently, giving the faint rainbow fringe of real glass at the rim.
+// The input is the screen area behind a piece of glass. The glass is modelled as a slab with a rounded bevel
+// along its rim (`band` wide): looking straight through, the flat middle shows the background undistorted,
+// while over the bevel the light is bent towards the inside, more and more towards the rim. That magnifies the
+// background just inside the glass out towards the edge, so lines and shapes passing under the rim visibly
+// curve along it.
+//  - the bend grows as u^2 (u = 0 where the bevel starts, 1 at the rim), up to a third of the bevel width at full
+//    strength: steep enough to read as thick glass, never so steep that the picture folds over (mirrored, smeared);
+//  - red, green and blue bend very slightly differently, giving the faint colour fringe of real glass at the rim.
 // (The rim's light is drawn by GlassSurface's layers, which follow the glass's exact outline.)
 // Compile: fxc /T ps_2_0 /E main /O3 /Fo Lens.ps Lens.fx
 
@@ -29,16 +30,18 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     float2 nSide = lerp(float2(0, 1), float2(1, 0), step(q.y, q.x));
     float2 n = lerp(nSide, nCorner, step(0.0001, outside)) * sign(p);
 
-    // bevel: u = 0 where it starts (flat middle), 1 at the rim; bend follows the sag of a circular profile
+    // bevel: u = 0 where it starts (flat middle), 1 at the rim. The light is bent inwards by up to half the bevel
+    // width (at full strength), growing as u^2: the bend steepens towards the rim, so what's just inside the glass
+    // is magnified more and more towards the edge - but never so steeply that the picture folds back on itself
+    // (that would mirror and smear the background at the rim).
     float u = saturate(1 + d / band);
-    float sag = 1 - sqrt(saturate(1 - u * u));
-    float2 off = n * (strength * band * 2.0 * sag) / scale;
+    float2 off = n * (strength * band * 0.35 * u * u) / scale;
 
-    // dispersion: red bends a little less, blue a little more
+    // dispersion: red bends a little less, blue a little more (a faint fringe, not a colour split)
     float4 c;
-    c.r = tex2D(input, uv - off * 0.9).r;
+    c.r = tex2D(input, uv - off * 0.97).r;
     c.g = tex2D(input, uv - off).g;
-    c.b = tex2D(input, uv - off * 1.1).b;
+    c.b = tex2D(input, uv - off * 1.03).b;
     c.a = 1;
     return c;
 }
