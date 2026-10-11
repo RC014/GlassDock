@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
+using GlassDock.Interop;
 
 namespace GlassDock;
 
@@ -27,7 +28,7 @@ internal static class ScreenSampler
         // starve it. This timer only notices glass appearing while that loop is off; it runs below the
         // auto-hide checks (Normal priority) so they never wait for a screen copy.
         _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(IntervalMs) };
-        _timer.Tick += (_, _) => TickIfDue();
+        _timer.Tick += (_, _) => { if (!_tracking) TickIfDue(); }; // while frames drive sampling, a timer sample would only shift their rhythm
         _timer.Start();
     }
 
@@ -63,12 +64,19 @@ internal static class ScreenSampler
     public static void SampleNow(GlassSurface surface)
     {
         if (!surface.NeedsSample) return;
-        IntPtr screen = GetDC(IntPtr.Zero);
-        try { surface.Sample(screen); }
+        try { surface.Sample(IntPtr.Zero); }
         catch (Exception ex) { App.Log(ex); }
-        finally { ReleaseDC(IntPtr.Zero, screen); }
         SetTracking(true);
     }
+
+    /// <summary>Samples every glass surface in <paramref name="window"/> right away (a bar about to slide in).</summary>
+    public static void SampleNow(Window window)
+    {
+        foreach (var s in Surfaces.ToArray())
+            if (Window.GetWindow(s) == window) SampleNow(s);
+    }
+
+    private static readonly List<Native.RECT> Wanted = new();
 
     private static void Tick()
     {
@@ -77,12 +85,20 @@ internal static class ScreenSampler
         bool any = false;
         try
         {
+            // With the GPU capture: tell it which areas to copy out of each new frame.
+            if (GpuCapture.Current is { } gpu)
+            {
+                Wanted.Clear();
+                foreach (var s in Surfaces)
+                    if (s.NeedsSample && !s.IsSliding && s.TryGetCaptureArea(out var area)) Wanted.Add(area);
+                gpu.SetWanted(Wanted);
+            }
             foreach (var s in Surfaces)
             {
                 if (!s.NeedsSample) continue;
                 any = true;
                 if (s.IsSliding) continue;
-                if (screen == IntPtr.Zero) screen = GetDC(IntPtr.Zero);
+                if (screen == IntPtr.Zero && GpuCapture.Current == null) screen = GetDC(IntPtr.Zero);
                 s.Sample(screen);
             }
             SetTracking(any);

@@ -31,9 +31,12 @@ public sealed class GlassSurface : Grid
     /// <summary>Blur radius at the centre line, in DIPs, at 100% blur.</summary>
     private const double MaxBlurDip = 18;
 
-    // The glass bends light outwards: its rim shows what lies just outside it. So the screen is captured with a margin
-    // all round (CaptureMarginDip), and the lens works on the glass plus a margin of its own (_lensMargin, DIPs).
-    private const double CaptureMarginDip = 48;
+    // The lens enlarges towards the glass's middle, so it only ever shows what's under the glass itself. The lens still
+    // works on the glass plus a hairline margin (_lensMargin, DIPs) so the anti-aliased rim has a picture to blend,
+    // and the screen is captured with a small margin all round (CaptureMarginDip) to provide it. (Every pixel
+    // captured costs time on every sample, so these stay small.)
+    private const double CaptureMarginDip = 4;
+    private const double LensMarginDip = 2;
     private int _captureMarginPx;
     private double _lensMargin;
     private FrameworkElement _lensTop = null!;
@@ -133,6 +136,9 @@ public sealed class GlassSurface : Grid
         Children.Add(_lensHost);
     }
 
+    /// <summary>A backdrop of a see-through panel: keeps sampling the screen for its glass, but draws nothing.</summary>
+    internal void HidePicture() => Children.Remove(_lensHost);
+
     /// <summary>
     /// Makes this piece of glass refract <paramref name="backdrop"/>'s screen capture instead of taking its own.
     /// Its place in that capture is measured ignoring <paramref name="anchor"/>'s render transform (the panel's
@@ -145,8 +151,12 @@ public sealed class GlassSurface : Grid
         ScreenSampler.Unregister(this);
         backdrop.Sampled += OnSourceSampled;
         LayoutUpdated += (_, _) => UpdateViewbox();
-        // Hovering or typing over the glass then doesn't re-run its shaders.
-        CacheMode = new BitmapCache(VisualTreeHelper.GetDpi(this).DpiScaleX);
+        // The refracted picture and the inner glow are each kept as a bitmap: hovering or typing over the glass then
+        // doesn't re-run any shader, and a new picture of the screen re-runs only the lens and blur (the glow's
+        // blur, which never changes, stays as it is).
+        double dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        _lensHost.CacheMode = new BitmapCache(dpi);
+        _glowHost.CacheMode = new BitmapCache(dpi);
         OnSourceSampled();
     }
 
@@ -181,8 +191,7 @@ public sealed class GlassSurface : Grid
             _lens.Radius = _blurHEffect.Radius = _blurVEffect.Radius = radius / ActualHeight;
             // blur radius at the centre line (fading to none at the rim), per pass direction, in uv units
             double blurDip = Settings.Current.RefractionBlur * MaxBlurDip;
-            // the lens's margin: room for the outward bend (half the bevel at full strength) plus a little
-            _lensMargin = Math.Min(Math.Ceiling(band * 0.55) + 2, CaptureMarginDip - 4);
+            _lensMargin = LensMarginDip;
             if (_lensTop != null) _lensTop.Margin = new Thickness(-_lensMargin);
             double bigW = ActualWidth + 2 * _lensMargin, bigH = ActualHeight + 2 * _lensMargin;
             _lens.Big = _blurHEffect.Big = _blurVEffect.Big = new Point(bigW / ActualHeight, bigH / ActualHeight);
@@ -202,7 +211,9 @@ public sealed class GlassSurface : Grid
 
     // ---------------- screen sampling ----------------
 
-    internal bool NeedsSample => IsVisible && ActualWidth >= 2 && ActualHeight >= 2 && PresentationSource.FromVisual(this) != null;
+    // (A bar slid off the screen needs none: it takes a fresh one as it starts to slide back in.)
+    internal bool NeedsSample => IsVisible && ActualWidth >= 2 && ActualHeight >= 2 && PresentationSource.FromVisual(this) != null
+        && Window.GetWindow(this) is not GlassWindow { IsSlidIn: false };
 
     /// <summary>No new pictures while the bar slides: the last one travels with the glass and the bar isn't redrawn.</summary>
     internal bool IsSliding => IsAnimating || Window.GetWindow(this) is GlassWindow { IsSliding: true };
@@ -210,43 +221,77 @@ public sealed class GlassSurface : Grid
     /// <summary>Set while a panel animates (PanelAnimation): no new screen samples, so the cached glass stays cached.</summary>
     internal bool IsAnimating { get; set; }
 
-    /// <summary>Copies the screen area currently under this surface (physical px) into the lens image.</summary>
-    internal void Sample(IntPtr screenDc)
+    /// <summary>
+    /// The screen area (physical px) this surface samples: its window's whole area where it rests (even while it
+    /// slides), plus the capture margin. A bar's window already has room for the dock's magnification stretch, so
+    /// the brush can always show the exact slice under the glass (UpdateViewbox) without running out of image or
+    /// stretching; while sliding, the picture moves rigidly with the window. Bars use their resting rectangle; other
+    /// windows (panels, the preview panel) where they currently are.
+    /// </summary>
+    internal bool TryGetCaptureArea(out Native.RECT area)
     {
-        // Capture the window's whole area where it rests (even while it slides). It already has room for the
-        // dock's magnification stretch, so the brush can always show the exact slice under the glass
-        // (UpdateViewbox) without running out of image or stretching; while sliding, the picture moves
-        // rigidly with the window.
-        // Bars use their resting rectangle; other windows (the preview panel) where they currently are.
+        area = default;
         var window = Window.GetWindow(this);
-        if (window == null) return;
+        if (window == null) return false;
         Native.RECT rest;
         if (window is GlassWindow bar) rest = bar.RestRectPx;
-        else if (!Native.GetWindowRect(new System.Windows.Interop.WindowInteropHelper(window).Handle, out rest)) return;
+        else if (!Native.GetWindowRect(new System.Windows.Interop.WindowInteropHelper(window).Handle, out rest)) return false;
+        int m = (int)Math.Ceiling(CaptureMarginDip * VisualTreeHelper.GetDpi(this).DpiScaleX);
+        area = new Native.RECT { Left = rest.Left - m, Top = rest.Top - m, Right = rest.Right + m, Bottom = rest.Bottom + m };
+        return area.Right - area.Left >= 2 && area.Bottom - area.Top >= 2;
+    }
+
+    // what the last sample from the GPU capture was (frame and area), so an unchanged screen costs nothing
+    private int _gpuVersion = -1;
+    private Native.RECT _gpuArea;
+
+    /// <summary>Copies the screen area currently under this surface (physical px) into the lens image.</summary>
+    /// <param name="screenDc">The screen's DC for BitBlt, or zero to take one if it's needed.</param>
+    internal void Sample(IntPtr screenDc)
+    {
+        if (!TryGetCaptureArea(out var area)) return;
         _captureMarginPx = (int)Math.Ceiling(CaptureMarginDip * VisualTreeHelper.GetDpi(this).DpiScaleX);
-        int x = rest.Left - _captureMarginPx, y = rest.Top - _captureMarginPx;
-        int w = rest.Right - rest.Left + 2 * _captureMarginPx, h = rest.Bottom - rest.Top + 2 * _captureMarginPx;
-        if (w < 2 || h < 2) return;
+        int x = area.Left, y = area.Top, w = area.Right - area.Left, h = area.Bottom - area.Top;
 
         if (w != _w || h != _h || _bitmap == null)
         {
             FreeBuffers();
-            _memDc = CreateCompatibleDC(screenDc);
-            var bi = new BITMAPINFOHEADER { biSize = Marshal.SizeOf<BITMAPINFOHEADER>(), biWidth = w, biHeight = -h, biPlanes = 1, biBitCount = 32 };
-            _dib = CreateDIBSection(_memDc, ref bi, 0, out _bits, IntPtr.Zero, 0);
-            SelectObject(_memDc, _dib);
             _w = w; _h = h;
             _bitmap = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgr32, null);
             _lensBrush.ImageSource = _bitmap;
         }
 
-        BitBlt(_memDc, 0, 0, w, h, screenDc, x, y, SRCCOPY);
-
         // Only push a new frame when the background actually changed: every update redraws the whole bar.
         int len = w * h * 4;
         if (_prev.Length != len) _prev = new byte[len];
         if (_curr.Length != len) _curr = new byte[len];
-        Marshal.Copy(_bits, _curr, 0, len);
+
+        int version = -1;
+        if (GpuCapture.Current is { } gpu)
+        {
+            // nothing new on screen since the last sample of the same area: nothing to do
+            if (gpu.Version == _gpuVersion && area.Equals(_gpuArea)) return;
+            version = gpu.CopyTo(_curr, x, y, w, h);
+        }
+        if (version >= 0) { _gpuVersion = version; _gpuArea = area; }
+        else
+        {
+            _gpuVersion = -1;
+            IntPtr dc = screenDc != IntPtr.Zero ? screenDc : GetDC(IntPtr.Zero);
+            try
+            {
+                if (_memDc == IntPtr.Zero)
+                {
+                    _memDc = CreateCompatibleDC(dc);
+                    var bi = new BITMAPINFOHEADER { biSize = Marshal.SizeOf<BITMAPINFOHEADER>(), biWidth = w, biHeight = -h, biPlanes = 1, biBitCount = 32 };
+                    _dib = CreateDIBSection(_memDc, ref bi, 0, out _bits, IntPtr.Zero, 0);
+                    SelectObject(_memDc, _dib);
+                }
+                BitBlt(_memDc, 0, 0, w, h, dc, x, y, SRCCOPY);
+            }
+            finally { if (screenDc == IntPtr.Zero) ReleaseDC(IntPtr.Zero, dc); }
+            Marshal.Copy(_bits, _curr, 0, len);
+        }
         if (TestBackground.Value is { } test) test.CopyTo(_curr, x, y, w, h);
         RepeatEdges(_curr, x, y, w, h);
         if (!_curr.AsSpan().SequenceEqual(_prev))
@@ -376,6 +421,8 @@ public sealed class GlassSurface : Grid
         public int biCompression, biSizeImage, biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant;
     }
 
+    [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
     [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
     [DllImport("gdi32.dll")] private static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFOHEADER bi, uint usage, out IntPtr bits, IntPtr section, uint offset);
     [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);

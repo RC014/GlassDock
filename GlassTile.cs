@@ -48,6 +48,23 @@ public class GlassTile : Grid
         foreach (var tile in Descendants(body).OfType<GlassTile>()) tile.Glass.ShareFrom(backdrop, body);
     }
 
+    /// <summary>
+    /// Makes a panel window see-through wherever nothing is drawn, so the gaps between its pieces of glass show the
+    /// live screen (composed by DWM) instead of the backdrop's capture, which is only as fresh as the last sample.
+    /// The backdrop then keeps sampling for the glass but isn't shown. Needs WPF's hardware rendering (its software
+    /// path can't draw see-through pixels into a normal window); returns whether it worked.
+    /// </summary>
+    internal static bool MakeSeeThrough(Window window, System.IntPtr hwnd, GlassSurface backdrop)
+    {
+        if (RenderCapability.Tier >> 16 == 0 || System.Windows.Interop.HwndSource.FromHwnd(hwnd) is not { CompositionTarget: { } target }) return false;
+        var all = new Interop.Native.MARGINS { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+        if (Interop.Native.DwmExtendFrameIntoClientArea(hwnd, ref all) != 0) return false;
+        target.BackgroundColor = Colors.Transparent;
+        window.Background = Brushes.Transparent; // still hit-testable: a click in a gap closes the panel
+        backdrop.HidePicture();
+        return true;
+    }
+
     /// <summary>Whether <paramref name="element"/> is (inside) a piece of glass, rather than a gap between them.</summary>
     internal static bool IsOnTile(DependencyObject? element)
     {

@@ -36,12 +36,17 @@ public partial class StartMenuWindow : Window
             _hwnd = new WindowInteropHelper(this).Handle;
             int ex = Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE);
             Native.SetWindowLong(_hwnd, Native.GWL_EXSTYLE, (ex | Native.WS_EX_TOOLWINDOW) & ~Native.WS_EX_APPWINDOW);
-            // With refraction the window is invisible (a backdrop of the screen behind it): no rounding, border or shadow.
+            // With refraction the window itself is invisible (see-through, or a backdrop of the screen behind it):
+            // no rounding, border or shadow.
             int round = Settings.Current.Refraction ? Native.DWMWCP_DONOTROUND : 2 /* DWMWCP_ROUND */;
             Native.DwmSetWindowAttribute(_hwnd, Native.DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
             int none = Native.DWMWA_COLOR_NONE;
             Native.DwmSetWindowAttribute(_hwnd, Native.DWMWA_BORDER_COLOR, ref none, sizeof(int));
-            if (Settings.Current.Refraction) Native.SetWindowDisplayAffinity(_hwnd, Native.WDA_EXCLUDEFROMCAPTURE);
+            if (Settings.Current.Refraction)
+            {
+                Native.SetWindowDisplayAffinity(_hwnd, Native.WDA_EXCLUDEFROMCAPTURE);
+                GlassTile.MakeSeeThrough(this, _hwnd, Glass);
+            }
         };
 
         Deactivated += (_, _) => { if (!_menuOpen) Dismiss(); };

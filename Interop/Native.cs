@@ -61,6 +61,10 @@ internal static class Native
     public const int DWMWCP_DONOTROUND = 1;
     public const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MARGINS { public int Left, Right, Top, Bottom; }
+    [DllImport("dwmapi.dll")] public static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref MARGINS margins);
+
     // ---- app bar ----
     [StructLayout(LayoutKind.Sequential)]
     public struct APPBARDATA

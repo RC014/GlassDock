@@ -140,6 +140,8 @@ Menus close by themselves when you move the cursor away from them.
 
 **Screenshots:** with refraction on, GlassDock reads the screen behind the bubbles, so the bubbles exclude themselves from screen capture to avoid seeing themselves. That means they don't appear in screenshots or screen recordings. Turn refraction off if you need them to.
 
+The screen behind the glass is read through Windows' own screen capture on the graphics card (only when something on screen changed). Where that isn't available (older Windows 10, remote sessions), GlassDock falls back to copying the screen with GDI, which is slower.
+
 ## If the Windows taskbar doesn't come back
 
 Quitting GlassDock restores the Windows taskbar and Windows' volume/brightness pop-up. If GlassDock was killed or crashed, run:
@@ -158,6 +160,7 @@ GlassDock.exe --restore
 - The glass shaders in `Shaders\` are precompiled (`.ps`). After editing a `.fx` file, recompile it with `fxc` from the Windows SDK, e.g. `fxc /T ps_2_0 /E main /O3 /Fo Shaders\Lens.ps Shaders\Lens.fx`.
 - Since the bars don't show up in screenshots while refraction is on, setting the environment variable `GLASSDOCK_DUMP=<path prefix>` makes GlassDock render each visible bar, Quick Settings, the Start menu and the volume indicator to `<prefix>_<name>_<n>.png` once a second for a few seconds after start-up.
 - `GLASSDOCK_TESTBG=<png>` makes all glass refract that picture (stretched over the screen) instead of what is really behind it, so changes to the glass can be compared on a fixed background, e.g. a grid with coloured bars (combine with `GLASSDOCK_DUMP`).
+- `GLASSDOCK_BITBLT=1` makes the glass read the screen with GDI instead of the graphics card's screen capture (for comparing the two).
 
 ## Notes
 

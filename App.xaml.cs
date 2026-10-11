@@ -77,6 +77,9 @@ public partial class App : Application
 
         if (Settings.Current.HideWindowsTaskbar) Shell.ExplorerHelper.HideExplorerTaskbar = true;
 
+        // The glass's copy of the screen comes from the GPU when possible (BitBlt until that's running, or instead).
+        if (Settings.Current.Refraction && Environment.GetEnvironmentVariable("GLASSDOCK_BITBLT") != "1") GpuCapture.Start();
+
         Dock = new DockWindow();
         Status = new StatusWindow();
         Dock.Show();

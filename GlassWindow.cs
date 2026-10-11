@@ -120,6 +120,8 @@ public abstract class GlassWindow : Window
         if (shown && !CanShow) return;
         IsSlidIn = shown;
         if (shown && !IsVisible) Show();
+        // hidden bars don't sample the screen: take a fresh picture now, before it's cached for the slide
+        if (shown && !IsSliding) ScreenSampler.SampleNow(this);
 
         int version = ++_slideVersion;
         IsSliding = true;
