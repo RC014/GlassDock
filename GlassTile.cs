@@ -28,6 +28,13 @@ public class GlassTile : Grid
         set => Resources["Radius"] = new System.Windows.CornerRadius(value);
     }
 
+    /// <summary>Scales the width of this glass's refracting edge (1 = as wide as its corner rounding).</summary>
+    public double BandScale
+    {
+        get => Glass.BandScale;
+        set => Glass.BandScale = value;
+    }
+
     /// <summary>Points every tile inside <paramref name="body"/> at the panel's backdrop (see <see cref="GlassSurface.ShareFrom"/>).</summary>
     internal static void ConnectAll(GlassSurface backdrop, FrameworkElement body)
     {

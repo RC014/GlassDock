@@ -122,7 +122,7 @@
             </local:GlassTile>
 
             <!-- main card: pinned + recent, all apps, or search results -->
-            <local:GlassTile Grid.Row="1" CornerRadius="44" Margin="0,0,0,10">
+            <local:GlassTile Grid.Row="1" CornerRadius="44" BandScale="0.5" Margin="0,0,0,10">
                 <Grid>
                     <!-- home: pinned + recent -->
                     <ScrollViewer x:Name="HomeView" VerticalScrollBarVisibility="Auto" Padding="28,18,28,12">
