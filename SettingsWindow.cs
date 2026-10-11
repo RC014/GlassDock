@@ -55,7 +55,7 @@ internal sealed class SettingsWindow : Window
         Slider("Corner roundness", () => _s.CornerRadius, v => _s.CornerRadius = v, 0, 30, 1, "0");
         Check("Real glass refraction (bars won't appear in screenshots)", () => _s.Refraction, v => _s.Refraction = v);
         Slider("Refraction strength", () => _s.RefractionStrength, v => _s.RefractionStrength = v, 0, 1, 0.05, "0%", percent: true);
-        Slider("Edge softness (how gradually refraction and blur build up from the rim)", () => _s.RefractionEdge, v => _s.RefractionEdge = v, 0.1, 1, 0.05, "0%", percent: true);
+        Slider("Bevel width (how far in from the edge the glass bends)", () => _s.RefractionEdge, v => _s.RefractionEdge = v, 0.1, 1, 0.05, "0%", percent: true);
         Slider("Blur (strongest at the centre)", () => _s.RefractionBlur, v => _s.RefractionBlur = v, 0, 1, 0.05, "0%", percent: true);
         Slider("Refraction frame rate (lower = lighter on the PC)", () => _s.RefractionFps, v => _s.RefractionFps = v, 5, 60, 1, "0' fps'");
         Check("Frosted glass when refraction is off (Windows blur)", () => _s.GlassBlur >= 0.5, v => _s.GlassBlur = v ? 1 : 0);

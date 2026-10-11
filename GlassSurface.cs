@@ -99,11 +99,12 @@ public sealed class GlassSurface : Grid
         {
             double aspect = ActualWidth / ActualHeight;
             _lens.Aspect = _blurHEffect.Aspect = _blurVEffect.Aspect = aspect;
-            // Refracting band along the rim: RefractionEdge sets its share of the short side (1 = a fifth),
-            // BandScale narrows it on big glass. The band's rounded rectangle uses the glass's own corner radius
-            // (at least the band width, so the bending turns smoothly round the corners).
+            // The rounded bevel along the rim is about as wide as the glass's corner rounding (at least 22 DIPs, at
+            // most half the short side, so a pill-shaped bar is curved right across); RefractionEdge (bevel width)
+            // and BandScale narrow it. Its rounded rectangle uses at least the bevel width as corner radius, so the
+            // bending turns smoothly round the corners.
             double minDim = Math.Min(ActualWidth, ActualHeight);
-            double band = Math.Max(1, minDim * 0.2 * Settings.Current.RefractionEdge * BandScale);
+            double band = Math.Clamp(Math.Max(r, 22) * Settings.Current.RefractionEdge * BandScale, 2, minDim / 2);
             double radius = Math.Min(Math.Max(r, band), minDim / 2);
             _lens.Band = _blurHEffect.Band = _blurVEffect.Band = band / ActualHeight;
             _lens.Radius = _blurHEffect.Radius = _blurVEffect.Radius = radius / ActualHeight;
@@ -168,12 +169,48 @@ public sealed class GlassSurface : Grid
         if (_prev.Length != len) _prev = new byte[len];
         if (_curr.Length != len) _curr = new byte[len];
         Marshal.Copy(_bits, _curr, 0, len);
+        if (TestBackground.Value is { } test) test.CopyTo(_curr, x, y, w, h);
         if (!_curr.AsSpan().SequenceEqual(_prev))
         {
             _bitmap.WritePixels(new Int32Rect(0, 0, w, h), _curr, w * 4, 0);
             (_prev, _curr) = (_curr, _prev);
         }
         UpdateViewbox();
+    }
+
+    /// <summary>
+    /// Debug aid for tuning the glass: GLASSDOCK_TESTBG=&lt;png&gt; makes every glass refract that picture (stretched
+    /// over the primary screen) instead of what's really behind it.
+    /// </summary>
+    private static readonly Lazy<TestPicture?> TestBackground = new(() =>
+        Environment.GetEnvironmentVariable("GLASSDOCK_TESTBG") is { Length: > 0 } path && System.IO.File.Exists(path) ? new TestPicture(path) : null);
+
+    private sealed class TestPicture
+    {
+        private readonly byte[] _pixels;
+        private readonly int _w, _h;
+
+        public TestPicture(string path)
+        {
+            _w = Native.GetSystemMetrics(Native.SM_CXSCREEN);
+            _h = Native.GetSystemMetrics(Native.SM_CYSCREEN);
+            var src = new BitmapImage(new Uri(path));
+            var scaled = new TransformedBitmap(src, new ScaleTransform((double)_w / src.PixelWidth, (double)_h / src.PixelHeight));
+            var bgr = new FormatConvertedBitmap(scaled, PixelFormats.Bgr32, null, 0);
+            _pixels = new byte[_w * _h * 4];
+            bgr.CopyPixels(_pixels, _w * 4, 0);
+        }
+
+        /// <summary>Copies the screen area (x, y, w, h) of the picture into a w×h BGRA buffer.</summary>
+        public void CopyTo(byte[] target, int x, int y, int w, int h)
+        {
+            int x0 = Math.Clamp(x, 0, _w), x1 = Math.Clamp(x + w, 0, _w);
+            for (int row = 0; row < h; row++)
+            {
+                int sy = Math.Clamp(y + row, 0, _h - 1);
+                if (x1 > x0) Buffer.BlockCopy(_pixels, (sy * _w + x0) * 4, target, (row * w + (x0 - x)) * 4, (x1 - x0) * 4);
+            }
+        }
     }
 
     /// <summary>Points the brush at the part of the captured window area that is under the glass. The position is

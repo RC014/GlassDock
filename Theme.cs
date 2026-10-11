@@ -42,18 +42,21 @@ internal static class Theme
             (l ? Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF), 0),
             (l ? Color.FromArgb(0x0A, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x04, 0xFF, 0xFF, 0xFF), 1));
 
-        // Thickness of the glass: light gathers along the edges (brightest at the top, again at the bottom).
-        // (blurred into a smooth inner glow by GlassSurface)
-        r["GlassEdge"] = Light(
-            (Color.FromArgb(l ? (byte)0xB0 : (byte)0x80, 0xFF, 0xFF, 0xFF), 0),
-            (Color.FromArgb(l ? (byte)0x30 : (byte)0x1C, 0xFF, 0xFF, 0xFF), 0.5),
-            (Color.FromArgb(l ? (byte)0x80 : (byte)0x55, 0xFF, 0xFF, 0xFF), 1));
+        // Thickness of the glass: light gathers along the edges, where they face the light (top left) and again on
+        // the opposite side (bottom right), as on a rounded glass rim. (blurred into a smooth inner glow by GlassSurface)
+        r["GlassEdge"] = Light(diagonal: true,
+            (Color.FromArgb(l ? (byte)0xB0 : (byte)0x88, 0xFF, 0xFF, 0xFF), 0),
+            (Color.FromArgb(l ? (byte)0x28 : (byte)0x14, 0xFF, 0xFF, 0xFF), 0.4),
+            (Color.FromArgb(l ? (byte)0x28 : (byte)0x14, 0xFF, 0xFF, 0xFF), 0.6),
+            (Color.FromArgb(l ? (byte)0x90 : (byte)0x60, 0xFF, 0xFF, 0xFF), 1));
 
-        // Thin specular outline: bright along the top, fading down the sides, catching light again at the bottom.
-        r["GlassRim"] = Light(
-            (Color.FromArgb(l ? (byte)0xC0 : (byte)0x90, 0xFF, 0xFF, 0xFF), 0),
-            (Color.FromArgb(l ? (byte)0x40 : (byte)0x22, 0xFF, 0xFF, 0xFF), 0.45),
-            (Color.FromArgb(l ? (byte)0x80 : (byte)0x50, 0xFF, 0xFF, 0xFF), 1));
+        // Thin specular outline: a crisp highlight where the rim faces the light, fading along the sides, catching
+        // the light again on the far corner.
+        r["GlassRim"] = Light(diagonal: true,
+            (Color.FromArgb(l ? (byte)0xE0 : (byte)0xC0, 0xFF, 0xFF, 0xFF), 0),
+            (Color.FromArgb(l ? (byte)0x30 : (byte)0x1A, 0xFF, 0xFF, 0xFF), 0.38),
+            (Color.FromArgb(l ? (byte)0x30 : (byte)0x1A, 0xFF, 0xFF, 0xFF), 0.62),
+            (Color.FromArgb(l ? (byte)0xB0 : (byte)0x8C, 0xFF, 0xFF, 0xFF), 1));
         r["GlassSheen"] = Light(
             (Color.FromArgb(l ? (byte)0x48 : (byte)0x26, 0xFF, 0xFF, 0xFF), 0),
             (Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 0.4));
@@ -77,9 +80,15 @@ internal static class Theme
     private static double Highlights => Math.Clamp(Settings.Current.GlassHighlights, 0, 1);
 
     /// <summary>A vertical gradient for one of the glass's white light layers, scaled by <see cref="Highlights"/>.</summary>
-    private static LinearGradientBrush Light(params (Color c, double o)[] stops)
+    private static LinearGradientBrush Light(params (Color c, double o)[] stops) => Light(false, stops);
+
+    /// <summary>
+    /// A gradient for one of the glass's white light layers, scaled by <see cref="Highlights"/>: top to bottom, or
+    /// <paramref name="diagonal"/>ly from the top-left corner to the bottom-right one (light from the top left).
+    /// </summary>
+    private static LinearGradientBrush Light(bool diagonal, params (Color c, double o)[] stops)
     {
-        var b = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1), Opacity = Highlights };
+        var b = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = diagonal ? new Point(1, 1) : new Point(0, 1), Opacity = Highlights };
         foreach (var (c, o) in stops) b.GradientStops.Add(new GradientStop(c, o));
         b.Freeze();
         return b;

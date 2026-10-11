@@ -116,8 +116,8 @@ Menus close by themselves when you move the cursor away from them.
 | `ShowMediaArt`, `ShowMediaTitle`, `ShowMediaArtist` | cover only | What the media player shows |
 | `CornerRadius` | 19 | Roundness of the bubbles |
 | `Refraction` | true | Real glass refraction of the background (see the note on screenshots below) |
-| `RefractionStrength` | 0.8 | How strongly the glass bends the background along its rim (0–1) |
-| `RefractionEdge` | 1 | Width of the refracting band along the rim (1 = a fifth of the short side; the Start menu uses a narrower band) |
+| `RefractionStrength` | 0.8 | How strongly the glass's rounded edge bends the background (0–1): gently where the edge starts curving, strongly right at the rim, with a faint rainbow fringe |
+| `RefractionEdge` | 1 | Width of the rounded edge (bevel), relative to the glass's corner rounding: at 1 it's as wide as the rounding (at least 22 DIPs; a pill-shaped bar is curved right across), smaller values give a thinner edge |
 | `RefractionBlur` | 0.35 | Blur seen through the glass (0–1): none at the rim, growing towards the centre |
 | `RefractionFps` | 20 | How many times a second the glass updates what's behind it (5–60; lower = lighter on the PC) |
 | `LowPowerMode` | false | For weaker PCs: no open/close animations on the Start menu and Quick Settings, and the glass updates only 5 times a second |
@@ -155,6 +155,7 @@ GlassDock.exe --restore
 
 - The glass shaders in `Shaders\` are precompiled (`.ps`). After editing a `.fx` file, recompile it with `fxc` from the Windows SDK, e.g. `fxc /T ps_2_0 /E main /O3 /Fo Shaders\Lens.ps Shaders\Lens.fx`.
 - Since the bars don't show up in screenshots while refraction is on, setting the environment variable `GLASSDOCK_DUMP=<path prefix>` makes GlassDock render each visible bar, Quick Settings, the Start menu and the volume indicator to `<prefix>_<name>_<n>.png` once a second for a few seconds after start-up.
+- `GLASSDOCK_TESTBG=<png>` makes all glass refract that picture (stretched over the screen) instead of what is really behind it, so changes to the glass can be compared on a fixed background, e.g. a grid with coloured bars (combine with `GLASSDOCK_DUMP`).
 
 ## Notes
 

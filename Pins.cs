@@ -78,7 +78,8 @@ internal static class Pins
 
         if (string.IsNullOrEmpty(item.Name))
             item.Name = (item.ExePath != null ? ExeDescription(item.ExePath) : null) ?? Shell.GetDisplayName(path) ?? Path.GetFileNameWithoutExtension(path);
-        item.Icon = Shell.GetIcon(path, IconPx);
+        item.Icon = Shell.GetIcon(path, IconPx)
+            ?? (PackagedAppId(path) is { } packaged ? Shell.GetIcon(AppsFolder + packaged, IconPx) : null); // an updated Store app's old exe
         return item;
     }
 
@@ -127,6 +128,11 @@ internal static class Pins
         if (pin.ExePath != null && SamePath(pin.ExePath, exe)) return true;
         if (pin.PinPath != null && Settings.Current.PinAliases.TryGetValue(exe.ToLowerInvariant(), out var aliasOf)
             && string.Equals(aliasOf, pin.PinPath, StringComparison.OrdinalIgnoreCase))
+            return true;
+        // Store-packaged programs: the same package, whatever version folder it runs from
+        if (PackageFamilyOf(exe) is { } family
+            && (string.Equals(PackageFamilyOf(pin.ExePath), family, StringComparison.OrdinalIgnoreCase)
+                || pin.AppUserModelId?.StartsWith(family + "!", StringComparison.OrdinalIgnoreCase) == true))
             return true;
         if (pin.ExePath == null || IsExplorer(exe)) return false;
 
@@ -235,6 +241,36 @@ internal static class Pins
         return result;
     }
 
+    /// <summary>
+    /// The package family ("Name_PublisherId") of a program installed as a Store package, from its folder under
+    /// WindowsApps ("Name_Version_Arch_Resource_PublisherId"), or null. Unlike the folder, it survives updates.
+    /// </summary>
+    internal static string? PackageFamilyOf(string? exe)
+    {
+        if (string.IsNullOrEmpty(exe)) return null;
+        const string marker = @"\WindowsApps\";
+        int i = exe.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (i < 0) return null;
+        int start = i + marker.Length, end = exe.IndexOf('\\', start);
+        if (end < 0) return null;
+        var parts = exe.Substring(start, end - start).Split('_');
+        return parts.Length >= 5 && parts[0].Length > 0 && parts[^1].Length > 0 ? parts[0] + "_" + parts[^1] : null;
+    }
+
+    private static System.Collections.Generic.List<(string Name, string Id)>? _startApps;
+
+    /// <summary>The Start-menu entry ("Family!App") of a Store-packaged program, or null.</summary>
+    internal static string? PackagedAppId(string? exe)
+    {
+        if (PackageFamilyOf(exe) is not { } family) return null;
+        try
+        {
+            _startApps ??= Shell.EnumerateStartApps();
+            return _startApps.Select(a => a.Id).FirstOrDefault(id => id.StartsWith(family + "!", StringComparison.OrdinalIgnoreCase));
+        }
+        catch { return null; }
+    }
+
     /// <summary>Whether this program may be learned as belonging to a pin (not Windows' own shell processes).</summary>
     public static bool CanLearn(ApplicationWindow w) =>
         !w.IsUWP && !string.IsNullOrEmpty(w.WinFileName) && !IsExplorer(w.WinFileName)
@@ -248,6 +284,8 @@ internal static class Pins
         if (running.AppUserModelId != null && Shell.GetDisplayName(AppsFolder + running.AppUserModelId) != null)
             return AppsFolder + running.AppUserModelId;
         if (running.ExePath != null && IsExplorer(running.ExePath)) return AppsFolder + ExplorerAumid;
+        // A Store-packaged program: its Start-menu entry, not the exe in a version folder that updates replace.
+        if (PackagedAppId(running.ExePath) is { } packaged) return AppsFolder + packaged;
         return running.ExePath;
     }
 
@@ -262,6 +300,9 @@ internal static class Pins
         {
             string? target = item.PinPath ?? item.ExePath ?? (item.AppUserModelId != null ? AppsFolder + item.AppUserModelId : null);
             if (target == null) return;
+            // a pinned Store-packaged program whose version folder an update replaced: start it from its Start-menu entry
+            if (!target.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) && !File.Exists(target) && PackagedAppId(target) is { } packaged)
+                target = AppsFolder + packaged;
             if (target.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
                 Process.Start(new ProcessStartInfo("explorer.exe", target) { UseShellExecute = true });
             else

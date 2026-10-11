@@ -5,7 +5,7 @@ using System.Windows.Media.Effects;
 
 namespace GlassDock;
 
-/// <summary>WPF wrapper for Shaders/Lens.fx: bends the background in a band along the glass's rim.</summary>
+/// <summary>WPF wrapper for Shaders/Lens.fx: bends the background over the glass's rounded bevel.</summary>
 public sealed class LensEffect : ShaderEffect
 {
     private static readonly PixelShader Shader = new()
