@@ -5,7 +5,9 @@
 // more towards the rim, so the rim shows what lies just outside the glass, squeezed along its edge. Lines and
 // shapes near the glass therefore curve along its outline and run round its rounded corners with it.
 //  - the bend grows as u^2 (u = 0 where the bevel starts, 1 at the rim), up to half the bevel width at full
-//    strength; bending outwards only ever squeezes the picture, so it can't fold over at any strength;
+//    strength, but fades in from zero over the outermost third of the bevel, so right at the edge the glass shows
+//    exactly what's beside it and the picture meets the background without a jump (that strip mirrors what's
+//    just outside, like the rounded edge of thick glass);
 //  - red, green and blue bend very slightly differently, giving the faint colour fringe of real glass at the rim.
 // (The rim's light is drawn by GlassSurface's layers, which follow the glass's exact outline.)
 // Compile: fxc /T ps_2_0 /E main /O3 /Fo Lens.ps Lens.fx
@@ -33,7 +35,11 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     // bevel: u = 0 where it starts (flat middle), 1 at the rim (and a little more in corners sharper than the
     // bevel's rounding, so the bend keeps growing smoothly right up to the real edge)
     float u = max(1 + d / band, 0);
-    float2 off = n * (strength * band * 0.5 * u * u) / big;
+    // ...except right at the rim: over the outermost third of the bevel the bend fades in from zero, so at the edge
+    // the glass shows exactly what's beside it and the background runs on without a jump
+    float ramp = saturate(-d / band * 3);
+    ramp = ramp * ramp * (3 - 2 * ramp);
+    float2 off = n * (strength * band * 0.5 * u * u * ramp) / big;
 
     // dispersion: red bends a little less, blue a little more (a faint fringe, not a colour split)
     float4 c;
