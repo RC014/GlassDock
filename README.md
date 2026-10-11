@@ -118,8 +118,8 @@ Menus close by themselves when you move the cursor away from them.
 | `ShowMediaArt`, `ShowMediaTitle`, `ShowMediaArtist` | cover only | What the media player shows |
 | `CornerRadius` | 19 | Roundness of the bubbles |
 | `Refraction` | true | Real glass refraction of the background (see the note on screenshots below) |
-| `RefractionStrength` | 0.8 | How strongly the glass's rounded edge bends the light (0–1). The very edge shows exactly what's beside the glass, so the background runs on into it; just inside, the edge bends smoothly, so lines and shapes near the glass curve along its outline and round its corners with it (it never folds, at any strength); with a faint rainbow fringe |
-| `RefractionEdge` | 1 | Width of the rounded edge (bevel), relative to the glass's corner rounding: at 1 it's as wide as the rounding (at least 16 DIPs, at most half the glass's shorter side), smaller values give a thinner edge |
+| `RefractionStrength` | 0.8 | Strength of the glass's lens (0–1). Like a lens, the glass is thin at its edge (the background there is barely refracted, so it runs on into the glass without a jump), gets thicker over its rounded edge (refracting more and more) and, on big glass, stays at that thickness across the middle, which shows the background slightly enlarged; it never folds, at any strength; with a faint rainbow fringe |
+| `RefractionEdge` | 1 | Width of the rounded edge, where the glass gets thicker, relative to the glass's corner rounding: at 1 it's as wide as the rounding (at least 16 DIPs, at most half the glass's shorter side), smaller values give a thinner edge |
 | `RefractionBlur` | 0.35 | Blur seen through the glass (0–1): none at the rim, growing towards the centre |
 | `RefractionFps` | 20 | How many times a second the glass updates what's behind it (5–60; lower = lighter on the PC) |
 | `LowPowerMode` | false | For weaker PCs: no open/close animations on the Start menu and Quick Settings, and the glass updates only 5 times a second |
