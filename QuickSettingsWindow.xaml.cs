@@ -36,13 +36,18 @@ public partial class QuickSettingsWindow : Window
         Resources["QsAccent"] = new SolidColorBrush(AccentColor());
         if (!Settings.Current.Refraction) Glass.Visibility = Visibility.Collapsed;
         BuildTiles();
+        Glass.MakeBackdrop();
+        GlassTile.ConnectAll(Glass, Body);
+        // A click in a gap between the pieces of glass is a click on the desktop: close, like a click outside.
+        PreviewMouseDown += (_, e) => { if (Settings.Current.Refraction && !GlassTile.IsOnTile(e.OriginalSource as DependencyObject)) Hide(); };
 
         SourceInitialized += (_, _) =>
         {
             _hwnd = new WindowInteropHelper(this).Handle;
             int ex = Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE);
             Native.SetWindowLong(_hwnd, Native.GWL_EXSTYLE, (ex | Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE) & ~Native.WS_EX_APPWINDOW);
-            int round = 2; // DWMWCP_ROUND
+            // With refraction the window is invisible (a backdrop of the screen behind it): no rounding, border or shadow.
+            int round = Settings.Current.Refraction ? Native.DWMWCP_DONOTROUND : 2 /* DWMWCP_ROUND */;
             Native.DwmSetWindowAttribute(_hwnd, Native.DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
             int none = Native.DWMWA_COLOR_NONE;
             Native.DwmSetWindowAttribute(_hwnd, Native.DWMWA_BORDER_COLOR, ref none, sizeof(int));
@@ -163,8 +168,14 @@ public partial class QuickSettingsWindow : Window
     private void UpdateMedia()
     {
         var m = MediaController.Instance;
-        MediaCard.Visibility = MediaDivider.Visibility = m.HasMedia ? Visibility.Visible : Visibility.Collapsed;
-        if (!m.HasMedia) return;
+        if (!m.HasMedia)
+        {
+            MediaTitle.Text = "Not playing";
+            MediaArtist.Text = "";
+            MediaArt.Source = MediaAppIcon.Source = null;
+            MediaPlayGlyph.Text = "";
+            return;
+        }
         MediaAppName.Text = m.AppName;
         MediaAppIcon.Source = m.AppIcon;
         MediaTitle.Text = m.Title;
@@ -235,79 +246,96 @@ public partial class QuickSettingsWindow : Window
 
     private Tile AddTile(string glyph, string label, bool split, Func<Task> toggle, Action? more = null, bool chevron = false)
     {
-        var tile = new Tile(glyph, label, split || chevron, toggle, more ?? (() => toggle()));
-        Tiles.Children.Add(tile.Root);
+        // Toggles with their own settings page (Wi-Fi, Bluetooth) are pills; the rest are round buttons.
+        var tile = new Tile(glyph, label, pill: split, toggle, more ?? (() => toggle()));
+        (split ? (Panel)ToggleColumn : Tiles).Children.Add(tile.Root);
         return tile;
     }
 
-    /// <summary>A Quick Settings tile: a rounded button (optionally split, with a chevron) and a label under it.</summary>
+    /// <summary>
+    /// A Quick Settings toggle as its own piece of glass: a pill (round on/off button, name, state and an arrow to
+    /// its settings) or a round button (name as tooltip). Filled with the accent colour while on.
+    /// </summary>
     private sealed class Tile
     {
-        private readonly Border _button;
-        private readonly TextBlock _label;
-        private readonly TextBlock[] _glyphs;
-        private readonly Border? _splitLine;
+        private readonly Border _knob;
+        private readonly TextBlock _glyph;
+        private readonly TextBlock? _sub;
+        private readonly string _name;
+        private readonly bool _pill;
         private bool _on, _enabled = true;
 
         public FrameworkElement Root { get; }
 
-        public Tile(string glyph, string label, bool withChevron, Func<Task> toggle, Action more)
+        public Tile(string glyph, string label, bool pill, Func<Task> toggle, Action more)
         {
-            var icon = new TextBlock { Text = glyph, FontFamily = (FontFamily)Application.Current.Resources["IconFont"], FontSize = 16, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            var grid = new Grid();
-            if (withChevron)
+            _name = label;
+            _pill = pill;
+            var iconFont = (FontFamily)Application.Current.Resources["IconFont"];
+            _glyph = new TextBlock { Text = glyph, FontFamily = iconFont, FontSize = pill ? 15 : 18, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+
+            if (pill)
             {
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.6, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                var main = new Border { Background = Brushes.Transparent, Child = icon, Cursor = Cursors.Hand };
-                main.MouseLeftButtonUp += async (_, _) => await toggle();
-                var chev = new TextBlock { Text = "", FontFamily = icon.FontFamily, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-                var side = new Border { Background = Brushes.Transparent, Child = chev, Cursor = Cursors.Hand };
-                side.MouseLeftButtonUp += (_, _) => more();
-                Grid.SetColumn(side, 1);
-                _splitLine = new Border { Width = 1, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 8) };
-                Grid.SetColumn(_splitLine, 1);
-                grid.Children.Add(main);
-                grid.Children.Add(side);
-                grid.Children.Add(_splitLine);
-                _glyphs = new[] { icon, chev };
+                _knob = new Border { Width = 40, Height = 40, CornerRadius = new CornerRadius(20), Margin = new Thickness(10, 0, 0, 0), Child = _glyph, Cursor = Cursors.Hand };
+                var name = new TextBlock { Text = label, FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+                name.SetResourceReference(TextBlock.ForegroundProperty, "Fg");
+                _sub = new TextBlock { FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) };
+                _sub.SetResourceReference(TextBlock.ForegroundProperty, "FgDim");
+                var chevron = new TextBlock { Text = "\uE76C", FontFamily = iconFont, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+                chevron.SetResourceReference(TextBlock.ForegroundProperty, "Fg");
+                var info = new DockPanel { Background = Brushes.Transparent, Cursor = Cursors.Hand };
+                DockPanel.SetDock(chevron, Dock.Right);
+                chevron.Margin = new Thickness(6, 0, 14, 0);
+                info.Children.Add(chevron);
+                info.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Children = { name, _sub } });
+                info.MouseLeftButtonUp += (_, _) => more();
+                var grid = new Grid();
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                grid.ColumnDefinitions.Add(new ColumnDefinition());
+                Grid.SetColumn(info, 1);
+                grid.Children.Add(_knob);
+                grid.Children.Add(info);
+                var tile = new GlassTile { CornerRadius = 30, Height = 60, Margin = new Thickness(0, 0, 0, 10) };
+                tile.Children.Add(grid);
+                Root = tile;
             }
             else
             {
-                grid.Children.Add(icon);
-                grid.Background = Brushes.Transparent;
-                grid.Cursor = Cursors.Hand;
-                grid.MouseLeftButtonUp += async (_, _) => await toggle();
-                _glyphs = new[] { icon };
+                _knob = new Border { CornerRadius = new CornerRadius(31), Child = _glyph, Cursor = Cursors.Hand };
+                var tile = new GlassTile { CornerRadius = 31, Width = 62, Height = 62, HorizontalAlignment = HorizontalAlignment.Center, ToolTip = label };
+                tile.Children.Add(_knob);
+                Root = tile;
             }
-
-            _button = new Border { Height = 50, CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Child = grid };
-            _label = new TextBlock { Text = label };
-            _label.SetResourceReference(FrameworkElement.StyleProperty, "QsLabel");
-            Root = new StackPanel { Margin = new Thickness(4, 0, 4, 10), Children = { _button, _label } };
+            _knob.MouseLeftButtonUp += async (_, _) => await toggle();
+            _knob.MouseEnter += (_, _) => { if (!_on) _knob.SetResourceReference(Border.BackgroundProperty, "HoverFill"); };
+            _knob.MouseLeave += (_, _) => Apply();
             Apply();
         }
 
         public bool IsOn { get => _on; set { if (_on != value) { _on = value; Apply(); } } }
         public bool Enabled { get => _enabled; set { if (_enabled != value) { _enabled = value; Root.Opacity = value ? 1 : 0.5; } } }
-        public string Label { get => _label.Text; set => _label.Text = value; }
+
+        /// <summary>The state line of a pill (network or device name); the plain name means "nothing to add".</summary>
+        public string Label
+        {
+            get => _sub?.Text ?? _name;
+            set { if (_sub != null) _sub.Text = value == _name ? (_on ? "On" : "Off") : value; }
+        }
 
         private void Apply()
         {
             if (_on)
             {
-                _button.SetResourceReference(Border.BackgroundProperty, "QsAccent");
-                _button.BorderBrush = Brushes.Transparent;
-                foreach (var g in _glyphs) g.Foreground = Brushes.White;
-                if (_splitLine != null) _splitLine.Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
+                _knob.SetResourceReference(Border.BackgroundProperty, "QsAccent");
+                _glyph.Foreground = Brushes.White;
             }
             else
             {
-                _button.SetResourceReference(Border.BackgroundProperty, "HoverFill");
-                _button.SetResourceReference(Border.BorderBrushProperty, "MenuStroke");
-                foreach (var g in _glyphs) g.SetResourceReference(TextBlock.ForegroundProperty, "Fg");
-                _splitLine?.SetResourceReference(Border.BackgroundProperty, "Divider");
+                if (_pill) _knob.SetResourceReference(Border.BackgroundProperty, "HoverFill");
+                else _knob.Background = Brushes.Transparent;
+                _glyph.SetResourceReference(TextBlock.ForegroundProperty, "Fg");
             }
+            if (_sub != null && (_sub.Text is "On" or "Off" or "")) _sub.Text = _on ? "On" : "Off";
         }
     }
 

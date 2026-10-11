@@ -57,9 +57,14 @@ public sealed class GlassSurface : Grid
             }
             _lensHost.Children.Add(top);
             Children.Add(_lensHost);
-            Loaded += (_, _) => ScreenSampler.Register(this);
+            Loaded += (_, _) => { if (_source == null) ScreenSampler.Register(this); };
             // Fresh sample the moment the bar is shown, so it never opens with the picture from last time.
-            IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) ScreenSampler.SampleNow(this); };
+            IsVisibleChanged += (_, e) =>
+            {
+                if (!(bool)e.NewValue) return;
+                if (_source == null) ScreenSampler.SampleNow(this);
+                else OnSourceSampled();
+            };
             Unloaded += (_, _) => { ScreenSampler.Unregister(this); FreeBuffers(); };
         }
 
@@ -88,8 +93,58 @@ public sealed class GlassSurface : Grid
     /// <summary>Scales the width of the refracting band (1 = normal; smaller for big panels such as the Start menu).</summary>
     public double BandScale { get; set; } = 1;
 
+    // ---------------- panels made of separate pieces of glass ----------------
+    // A panel window (Start menu, Quick Settings) is filled by a backdrop: the screen behind the window, shown as
+    // it is, so the window itself disappears. The panel's pieces of glass (GlassTile) all refract that same
+    // capture, so there's still only one screen copy per panel.
+
+    private bool _isBackdrop;
+    private GlassSurface? _source;
+    private UIElement? _anchor;
+
+    /// <summary>Raised after this surface took a new screen sample (pieces of glass sharing it re-aim then).</summary>
+    internal event Action? Sampled;
+
+    /// <summary>Turns this surface into a panel's backdrop: the captured screen as it is, no lens, tint or light.</summary>
+    internal void MakeBackdrop()
+    {
+        _isBackdrop = true;
+        Children.Clear();
+        if (!Settings.Current.Refraction) return;
+        _blurV.Child = null;
+        _blurH.Child = null;
+        _lensImage.Effect = null;
+        _lensHost.Children.Clear();
+        _lensHost.Children.Add(_lensImage);
+        Children.Add(_lensHost);
+    }
+
+    /// <summary>
+    /// Makes this piece of glass refract <paramref name="backdrop"/>'s screen capture instead of taking its own.
+    /// Its place in that capture is measured ignoring <paramref name="anchor"/>'s render transform (the panel's
+    /// open/close slide), so during the animation the glass travels with its picture instead of re-aiming.
+    /// </summary>
+    internal void ShareFrom(GlassSurface backdrop, UIElement anchor)
+    {
+        _source = backdrop;
+        _anchor = anchor;
+        ScreenSampler.Unregister(this);
+        backdrop.Sampled += OnSourceSampled;
+        LayoutUpdated += (_, _) => UpdateViewbox();
+        // Hovering or typing over the glass then doesn't re-run its shaders.
+        CacheMode = new BitmapCache(VisualTreeHelper.GetDpi(this).DpiScaleX);
+        OnSourceSampled();
+    }
+
+    private void OnSourceSampled()
+    {
+        if (_source?._bitmap is { } picture && !ReferenceEquals(_lensBrush.ImageSource, picture)) _lensBrush.ImageSource = picture;
+        UpdateViewbox();
+    }
+
     private void UpdateClip()
     {
+        if (_isBackdrop) { _lensHost.Clip = null; return; }
         double r = TryFindResource("Radius") is CornerRadius cr ? cr.TopLeft : 0;
         var clip = new RectangleGeometry(new Rect(0, 0, ActualWidth, ActualHeight), r, r);
         clip.Freeze();
@@ -104,7 +159,8 @@ public sealed class GlassSurface : Grid
             // and BandScale narrow it. Its rounded rectangle uses at least the bevel width as corner radius, so the
             // bending turns smoothly round the corners.
             double minDim = Math.Min(ActualWidth, ActualHeight);
-            double band = Math.Clamp(Math.Max(r, 16) * Settings.Current.RefractionEdge * BandScale, 2, minDim / 2);
+            // (and at least 15% of the short side, so big panels get an edge in proportion, like the bars)
+            double band = Math.Clamp(Math.Max(Math.Max(r, 16), minDim * 0.15) * Settings.Current.RefractionEdge * BandScale, 2, minDim / 2);
             double radius = Math.Min(Math.Max(r, band), minDim / 2);
             _lens.Band = _blurHEffect.Band = _blurVEffect.Band = band / ActualHeight;
             _lens.Radius = _blurHEffect.Radius = _blurVEffect.Radius = radius / ActualHeight;
@@ -176,6 +232,7 @@ public sealed class GlassSurface : Grid
             (_prev, _curr) = (_curr, _prev);
         }
         UpdateViewbox();
+        Sampled?.Invoke();
     }
 
     /// <summary>
@@ -220,14 +277,36 @@ public sealed class GlassSurface : Grid
     /// sideways shows what is actually behind it. Called every frame while visible.</summary>
     internal void UpdateViewbox()
     {
-        if (_bitmap == null || Window.GetWindow(this) is not { Content: Visual root } window || PresentationSource.FromVisual(this) == null) return;
+        if ((_source?._bitmap ?? _bitmap) == null || Window.GetWindow(this) is not { Content: Visual root } window || PresentationSource.FromVisual(this) == null) return;
+        if (_anchor != null && !_anchor.IsAncestorOf(this)) return;
         double s = VisualTreeHelper.GetDpi(this).DpiScaleX;
         double shift = window is GlassWindow gw ? gw.ShiftDip : 0;
-        var toWindow = TransformToAncestor(root);
-        var tl = toWindow.Transform(new Point(0, 0));
-        var br = toWindow.Transform(new Point(ActualWidth, ActualHeight));
+        Point tl, br;
+        if (_anchor is Visual anchor)
+        {
+            // position in the window, leaving out the anchor's own (animated) render transform
+            var toAnchor = TransformToAncestor(anchor);
+            var at = LayoutOffset(anchor, root);
+            tl = toAnchor.Transform(new Point(0, 0)) + at;
+            br = toAnchor.Transform(new Point(ActualWidth, ActualHeight)) + at;
+        }
+        else
+        {
+            var toWindow = TransformToAncestor(root);
+            tl = toWindow.Transform(new Point(0, 0));
+            br = toWindow.Transform(new Point(ActualWidth, ActualHeight));
+        }
         var box = new Rect((tl.X + shift) * s, tl.Y * s, Math.Max(1, (br.X - tl.X) * s), Math.Max(1, (br.Y - tl.Y) * s));
         if (box != _lensBrush.Viewbox) _lensBrush.Viewbox = box;
+    }
+
+    /// <summary>Where <paramref name="v"/> sits inside <paramref name="root"/> by layout alone (no render transforms).</summary>
+    private static Vector LayoutOffset(Visual v, Visual root)
+    {
+        var offset = new Vector();
+        for (DependencyObject? d = v; d != null && d != root; d = VisualTreeHelper.GetParent(d))
+            if (d is Visual visual) offset += VisualTreeHelper.GetOffset(visual);
+        return offset;
     }
 
     private void FreeBuffers()

@@ -66,6 +66,8 @@ The bars stay hidden and float over your windows; they never take screen space a
 
 ## Start menu
 
+Like Quick Settings, the Start menu is made of separate pieces of glass: a search pill, a card with your apps and files, and buttons for your account and power.
+
 - The **Windows button** on the dock and a **press of the Windows key** open GlassDock's glass Start menu. Windows-key shortcuts (Win+E, Win+R, Win+Shift+S, Win+L…) keep working as usual: only a press of the Windows key on its own opens the menu.
 - Start typing to **search** your apps (by name, word or initials, e.g. "vsc"); use the arrow keys and Enter to open one.
 - **Pinned** apps at the top (File Explorer, Settings and Microsoft Store to begin with): right-click any app for Pin to Start / Unpin from Start, Move to front, Keep in Dock and Uninstall.
@@ -89,7 +91,7 @@ Whenever Windows would show its own volume or brightness pop-up anyway (a laptop
 ## Status bar
 
 - `^` shows the hidden tray icons. Icons you set to "always show" in Windows Settings › Taskbar › Other system tray icons appear directly in the bar. Clicking or right-clicking a tray icon opens that app's own menu.
-- Network / volume / battery: click to open GlassDock's **Quick Settings** panel, scroll to change the volume, middle-click to mute. The panel (on the same glass as the bars) has the now-playing card, Wi-Fi and Bluetooth (with network/device names; the arrow opens their settings), airplane mode, accessibility, energy saver, live captions, brightness and volume sliders, battery and a shortcut to Windows Settings. Click anywhere outside it to close it.
+- Network / volume / battery: click to open GlassDock's **Quick Settings** panel, scroll to change the volume, middle-click to mute. It's made of separate pieces of glass floating over the desktop: Wi-Fi and Bluetooth pills (round on/off button, network/device name, and an arrow to their settings), the now-playing card, round buttons for airplane mode, accessibility, energy saver and live captions (filled with your accent colour when on), Display and Sound slider cards, a battery pill and a round settings button. Click anywhere outside the pieces to close it.
 - Click the clock to open notifications and the calendar.
 
 ## Updates
@@ -117,7 +119,7 @@ Menus close by themselves when you move the cursor away from them.
 | `CornerRadius` | 19 | Roundness of the bubbles |
 | `Refraction` | true | Real glass refraction of the background (see the note on screenshots below) |
 | `RefractionStrength` | 0.8 | How strongly the glass's rounded edge bends the background (0–1): gently where the edge starts curving, strongly right at the rim, with a faint rainbow fringe |
-| `RefractionEdge` | 1 | Width of the rounded edge (bevel), relative to the glass's corner rounding: at 1 it's as wide as the rounding (at least 16 DIPs, at most half the bar height), smaller values give a thinner edge |
+| `RefractionEdge` | 1 | Width of the rounded edge (bevel), relative to the glass's corner rounding: at 1 it's as wide as the rounding (at least 16 DIPs and 15% of the shorter side, at most half of it), smaller values give a thinner edge |
 | `RefractionBlur` | 0.35 | Blur seen through the glass (0–1): none at the rim, growing towards the centre |
 | `RefractionFps` | 20 | How many times a second the glass updates what's behind it (5–60; lower = lighter on the PC) |
 | `LowPowerMode` | false | For weaker PCs: no open/close animations on the Start menu and Quick Settings, and the glass updates only 5 times a second |

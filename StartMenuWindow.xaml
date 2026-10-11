@@ -94,10 +94,12 @@
         </Style>
     </Window.Resources>
 
+    <!-- The backdrop (the screen behind the window, so the window itself vanishes) and on it separate pieces of
+         glass: the search pill, the main card and the account / power buttons. -->
     <Grid>
         <local:GlassSurface x:Name="Glass" />
 
-        <Grid x:Name="Body">
+        <Grid x:Name="Body" Margin="6">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -105,95 +107,102 @@
             </Grid.RowDefinitions>
 
             <!-- search -->
-            <Border Margin="28,24,28,12" Padding="14,0" Height="38" CornerRadius="19"
-                    Background="{DynamicResource HoverFill}" BorderBrush="{DynamicResource MenuStroke}" BorderThickness="1">
-                <DockPanel>
-                    <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource FgDim}"
+            <local:GlassTile Height="50" CornerRadius="25" Margin="0,0,0,10">
+                <DockPanel Margin="20,0,20,0">
+                    <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="{DynamicResource FgDim}"
                                VerticalAlignment="Center" DockPanel.Dock="Left" />
-                    <Grid Margin="10,0,0,0">
-                        <TextBlock x:Name="SearchHint" Text="Search for apps" Foreground="{DynamicResource FgDim}" FontSize="13.5"
+                    <Grid Margin="12,0,0,0">
+                        <TextBlock x:Name="SearchHint" Text="Search for apps" Foreground="{DynamicResource FgDim}" FontSize="14"
                                    VerticalAlignment="Center" IsHitTestVisible="False" />
-                        <TextBox x:Name="SearchBox" Background="Transparent" BorderThickness="0" FontSize="13.5"
+                        <TextBox x:Name="SearchBox" Background="Transparent" BorderThickness="0" FontSize="14"
                                  Foreground="{DynamicResource Fg}" CaretBrush="{DynamicResource Fg}" VerticalAlignment="Center"
                                  TextChanged="Search_TextChanged" PreviewKeyDown="Search_PreviewKeyDown" />
                     </Grid>
                 </DockPanel>
-            </Border>
+            </local:GlassTile>
 
-            <!-- home: pinned + recent -->
-            <ScrollViewer x:Name="HomeView" Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="36,8,36,8">
-                <StackPanel>
-                    <DockPanel Margin="0,4,0,0">
-                        <Border DockPanel.Dock="Right" Style="{StaticResource Hover}" Padding="10,4" MouseLeftButtonUp="ShowAllApps">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="All apps" Foreground="{DynamicResource Fg}" FontSize="12.5" />
-                                <TextBlock Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="{DynamicResource Fg}"
-                                           Margin="8,0,0,0" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Border>
-                        <TextBlock Text="Pinned" Style="{StaticResource Header}" />
-                    </DockPanel>
-                    <ItemsControl x:Name="PinnedList" ItemTemplate="{StaticResource PinnedTile}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                    <TextBlock x:Name="PinnedEmpty" Text="Right-click an app in All apps and choose Pin to Start." Foreground="{DynamicResource FgDim}"
-                               FontSize="12.5" Margin="8,0,0,0" />
+            <!-- main card: pinned + recent, all apps, or search results -->
+            <local:GlassTile Grid.Row="1" CornerRadius="28" Margin="0,0,0,10">
+                <Grid>
+                    <!-- home: pinned + recent -->
+                    <ScrollViewer x:Name="HomeView" VerticalScrollBarVisibility="Auto" Padding="28,18,28,12">
+                        <StackPanel>
+                            <DockPanel Margin="0,4,0,0">
+                                <Border DockPanel.Dock="Right" Style="{StaticResource Hover}" Padding="10,4" MouseLeftButtonUp="ShowAllApps">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="All apps" Foreground="{DynamicResource Fg}" FontSize="12.5" />
+                                        <TextBlock Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="{DynamicResource Fg}"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="Pinned" Style="{StaticResource Header}" />
+                            </DockPanel>
+                            <ItemsControl x:Name="PinnedList" ItemTemplate="{StaticResource PinnedTile}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <TextBlock x:Name="PinnedEmpty" Text="Right-click an app in All apps and choose Pin to Start." Foreground="{DynamicResource FgDim}"
+                                       FontSize="12.5" Margin="8,0,0,0" />
 
-                    <TextBlock Text="Recent" Style="{StaticResource Header}" Margin="8,26,0,10" />
-                    <ItemsControl x:Name="RecentList" ItemTemplate="{StaticResource RecentRow}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                    <TextBlock x:Name="RecentEmpty" Text="Files you open will show up here." Foreground="{DynamicResource FgDim}"
-                               FontSize="12.5" Margin="8,0,0,0" />
-                </StackPanel>
-            </ScrollViewer>
-
-            <!-- all apps -->
-            <DockPanel x:Name="AllView" Grid.Row="1" Margin="36,8,36,8" Visibility="Collapsed">
-                <DockPanel DockPanel.Dock="Top" Margin="0,4,0,8">
-                    <Border DockPanel.Dock="Right" Style="{StaticResource Hover}" Padding="10,4" MouseLeftButtonUp="ShowHome">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE76B;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="{DynamicResource Fg}"
-                                       Margin="0,0,8,0" VerticalAlignment="Center" />
-                            <TextBlock Text="Back" Foreground="{DynamicResource Fg}" FontSize="12.5" />
+                            <TextBlock Text="Recent" Style="{StaticResource Header}" Margin="8,26,0,10" />
+                            <ItemsControl x:Name="RecentList" ItemTemplate="{StaticResource RecentRow}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <TextBlock x:Name="RecentEmpty" Text="Files you open will show up here." Foreground="{DynamicResource FgDim}"
+                                       FontSize="12.5" Margin="8,0,0,0" />
                         </StackPanel>
-                    </Border>
-                    <TextBlock Text="All apps" Style="{StaticResource Header}" Margin="8,0,0,0" />
-                </DockPanel>
-                <ListBox x:Name="AllList" Style="{StaticResource PlainList}" ItemTemplate="{StaticResource AppRow}" />
-            </DockPanel>
+                    </ScrollViewer>
 
-            <!-- search results -->
-            <DockPanel x:Name="SearchView" Grid.Row="1" Margin="36,8,36,8" Visibility="Collapsed">
-                <TextBlock DockPanel.Dock="Top" Text="Best matches" Style="{StaticResource Header}" Margin="8,4,0,8" />
-                <TextBlock x:Name="NoResults" DockPanel.Dock="Top" Text="No apps found." Foreground="{DynamicResource FgDim}" FontSize="12.5"
-                           Margin="8,0,0,0" Visibility="Collapsed" />
-                <ListBox x:Name="ResultsList" Style="{StaticResource PlainList}" ItemTemplate="{StaticResource AppRow}" />
-            </DockPanel>
+                    <!-- all apps -->
+                    <DockPanel x:Name="AllView" Margin="28,18,28,12" Visibility="Collapsed">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,4,0,8">
+                            <Border DockPanel.Dock="Right" Style="{StaticResource Hover}" Padding="10,4" MouseLeftButtonUp="ShowHome">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE76B;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="{DynamicResource Fg}"
+                                               Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Back" Foreground="{DynamicResource Fg}" FontSize="12.5" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="All apps" Style="{StaticResource Header}" Margin="8,0,0,0" />
+                        </DockPanel>
+                        <ListBox x:Name="AllList" Style="{StaticResource PlainList}" ItemTemplate="{StaticResource AppRow}" />
+                    </DockPanel>
+
+                    <!-- search results -->
+                    <DockPanel x:Name="SearchView" Margin="28,18,28,12" Visibility="Collapsed">
+                        <TextBlock DockPanel.Dock="Top" Text="Best matches" Style="{StaticResource Header}" Margin="8,4,0,8" />
+                        <TextBlock x:Name="NoResults" DockPanel.Dock="Top" Text="No apps found." Foreground="{DynamicResource FgDim}" FontSize="12.5"
+                                   Margin="8,0,0,0" Visibility="Collapsed" />
+                        <ListBox x:Name="ResultsList" Style="{StaticResource PlainList}" ItemTemplate="{StaticResource AppRow}" />
+                    </DockPanel>
+                </Grid>
+            </local:GlassTile>
 
             <!-- account and power -->
-            <Border Grid.Row="2" BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="40,12,28,12">
-                <DockPanel>
-                    <Border DockPanel.Dock="Right" Style="{StaticResource Hover}" Padding="10" ToolTip="Power" MouseLeftButtonUp="Power_Click">
-                        <TextBlock Text="&#xE7E8;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource Fg}" />
+            <DockPanel Grid.Row="2">
+                <local:GlassTile DockPanel.Dock="Right" Width="54" Height="54" CornerRadius="27" ToolTip="Power">
+                    <Border Style="{StaticResource Hover}" CornerRadius="27" MouseLeftButtonUp="Power_Click">
+                        <TextBlock Text="&#xE7E8;" FontFamily="{StaticResource IconFont}" FontSize="17" Foreground="{DynamicResource Fg}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <Border Style="{StaticResource Hover}" Padding="8,6" HorizontalAlignment="Left" MouseLeftButtonUp="Account_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Grid Width="32" Height="32">
+                </local:GlassTile>
+                <local:GlassTile Height="54" CornerRadius="27" HorizontalAlignment="Left">
+                    <Border Style="{StaticResource Hover}" CornerRadius="27" Padding="10,0,22,0" MouseLeftButtonUp="Account_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="36" Height="36">
                                 <Ellipse Fill="{DynamicResource HoverFill}" />
-                                <TextBlock Text="&#xE77B;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="{DynamicResource Fg}"
+                                <TextBlock Text="&#xE77B;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource Fg}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Ellipse x:Name="UserPicture" />
                             </Grid>
                             <TextBlock x:Name="UserName" Foreground="{DynamicResource Fg}" FontSize="13" Margin="12,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>
-                </DockPanel>
-            </Border>
+                </local:GlassTile>
+            </DockPanel>
         </Grid>
     </Grid>
 </Window>

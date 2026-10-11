@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:GlassDock"
         Title="GlassDock Quick Settings" WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
-        ShowActivated="False" Topmost="True" SizeToContent="Height" Width="380" UseLayoutRounding="True"
+        ShowActivated="False" Topmost="True" SizeToContent="Height" Width="352" UseLayoutRounding="True"
         Background="{DynamicResource MenuBg}" FontFamily="{StaticResource UiFont}">
     <Window.Resources>
         <CornerRadius x:Key="Radius">8</CornerRadius>
@@ -71,83 +71,117 @@
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+
+        <!-- Section title inside a slider card -->
+        <Style x:Key="QsCaption" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Fg}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
     </Window.Resources>
 
+    <!-- The backdrop (the screen behind the window, so the window itself vanishes) and on it separate pieces of
+         glass with gaps between them. -->
     <Grid>
         <local:GlassSurface x:Name="Glass" />
 
-        <StackPanel x:Name="Body" Margin="16,14,16,10">
+        <Grid x:Name="Body" Margin="6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Wi-Fi and Bluetooth pills (filled in code) -->
+            <StackPanel x:Name="ToggleColumn" />
+
             <!-- Now playing -->
-            <Grid x:Name="MediaCard" Margin="0,0,0,10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <StackPanel Orientation="Horizontal" Cursor="Hand" Background="Transparent" MouseLeftButtonUp="Media_ShowPlayer">
-                    <Image x:Name="MediaAppIcon" Width="16" Height="16" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality" />
-                    <TextBlock x:Name="MediaAppName" FontSize="12" Foreground="{DynamicResource Fg}" VerticalAlignment="Center" />
+            <local:GlassTile x:Name="MediaCard" Grid.Column="2" CornerRadius="24" Height="130">
+                <Grid Margin="14,12,14,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <DockPanel Cursor="Hand" Background="Transparent" MouseLeftButtonUp="Media_ShowPlayer">
+                        <Border Width="40" Height="40" CornerRadius="9" ClipToBounds="True" Background="{DynamicResource HoverFill}" DockPanel.Dock="Left">
+                            <Image x:Name="MediaArt" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Border>
+                        <Image x:Name="MediaAppIcon" Width="14" Height="14" Margin="0,2,0,0" VerticalAlignment="Top" HorizontalAlignment="Right"
+                               DockPanel.Dock="Right" RenderOptions.BitmapScalingMode="HighQuality" />
+                        <TextBlock x:Name="MediaAppName" Visibility="Collapsed" />
+                    </DockPanel>
+                    <StackPanel Grid.Row="1" VerticalAlignment="Center" Cursor="Hand" Background="Transparent" MouseLeftButtonUp="Media_ShowPlayer">
+                        <TextBlock x:Name="MediaTitle" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Fg}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MediaArtist" FontSize="11.5" Foreground="{DynamicResource FgDim}" TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                    </StackPanel>
+                    <UniformGrid Grid.Row="2" Columns="3" Margin="-6,0">
+                        <Border Style="{StaticResource BarButton}" Margin="0" Padding="0,5" MouseLeftButtonUp="Media_Previous">
+                            <TextBlock Text="&#xE892;" Style="{StaticResource QsGlyph}" FontSize="14" Foreground="{DynamicResource Fg}" />
+                        </Border>
+                        <Border Style="{StaticResource BarButton}" Margin="0" Padding="0,5" MouseLeftButtonUp="Media_PlayPause">
+                            <TextBlock x:Name="MediaPlayGlyph" Text="&#xE768;" Style="{StaticResource QsGlyph}" FontSize="17" Foreground="{DynamicResource Fg}" />
+                        </Border>
+                        <Border Style="{StaticResource BarButton}" Margin="0" Padding="0,5" MouseLeftButtonUp="Media_Next">
+                            <TextBlock Text="&#xE893;" Style="{StaticResource QsGlyph}" FontSize="14" Foreground="{DynamicResource Fg}" />
+                        </Border>
+                    </UniformGrid>
+                </Grid>
+            </local:GlassTile>
+
+            <!-- Round buttons (filled in code) -->
+            <UniformGrid x:Name="Tiles" Grid.Row="1" Grid.ColumnSpan="3" Columns="4" Margin="0,10,0,0" />
+
+            <!-- Display -->
+            <local:GlassTile x:Name="BrightnessRow" Grid.Row="2" Grid.ColumnSpan="3" CornerRadius="22" Margin="0,10,0,0">
+                <StackPanel Margin="16,10,16,8">
+                    <TextBlock Text="Display" Style="{StaticResource QsCaption}" />
+                    <DockPanel Margin="0,4,0,0">
+                        <TextBlock Text="&#xE706;" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" Width="24" DockPanel.Dock="Left" />
+                        <Slider x:Name="BrightnessSlider" Style="{StaticResource QsSlider}" Margin="8,0,4,0" />
+                    </DockPanel>
                 </StackPanel>
-                <StackPanel Grid.Row="1" Margin="0,12,8,0" Cursor="Hand" Background="Transparent" MouseLeftButtonUp="Media_ShowPlayer">
-                    <TextBlock x:Name="MediaTitle" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource Fg}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="MediaArtist" FontSize="12.5" Foreground="{DynamicResource FgDim}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+            </local:GlassTile>
+
+            <!-- Sound -->
+            <local:GlassTile Grid.Row="3" Grid.ColumnSpan="3" CornerRadius="22" Margin="0,10,0,0">
+                <StackPanel Margin="16,10,10,8">
+                    <TextBlock Text="Sound" Style="{StaticResource QsCaption}" />
+                    <DockPanel Margin="0,4,0,0">
+                        <TextBlock x:Name="VolumeGlyph" Text="&#xE767;" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" Width="24" DockPanel.Dock="Left"
+                                   Cursor="Hand" Background="Transparent" MouseLeftButtonUp="Volume_ToggleMute" />
+                        <Border DockPanel.Dock="Right" Style="{StaticResource BarButton}" Padding="6,4" Margin="6,0,0,0" ToolTip="Sound output"
+                                MouseLeftButtonUp="Volume_Output">
+                            <TextBlock Text="&#xE76C;" Style="{StaticResource QsGlyph}" FontSize="12" Foreground="{DynamicResource Fg}" />
+                        </Border>
+                        <Slider x:Name="VolumeSlider" Style="{StaticResource QsSlider}" Margin="8,0,0,0" />
+                    </DockPanel>
                 </StackPanel>
-                <Border Grid.Column="1" Grid.RowSpan="2" Width="80" Height="80" CornerRadius="8" ClipToBounds="True"
-                        Background="{DynamicResource HoverFill}" Cursor="Hand" MouseLeftButtonUp="Media_ShowPlayer">
-                    <Image x:Name="MediaArt" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
-                </Border>
-                <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                    <Border Style="{StaticResource BarButton}" Padding="14,8" MouseLeftButtonUp="Media_Previous">
-                        <TextBlock Text="&#xE892;" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" />
-                    </Border>
-                    <Border Style="{StaticResource BarButton}" Padding="14,8" Margin="12,6" MouseLeftButtonUp="Media_PlayPause">
-                        <TextBlock x:Name="MediaPlayGlyph" Text="&#xE768;" Style="{StaticResource QsGlyph}" FontSize="18" Foreground="{DynamicResource Fg}" />
-                    </Border>
-                    <Border Style="{StaticResource BarButton}" Padding="14,8" MouseLeftButtonUp="Media_Next">
-                        <TextBlock Text="&#xE893;" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" />
-                    </Border>
-                </StackPanel>
-            </Grid>
-            <Border x:Name="MediaDivider" Height="1" Background="{DynamicResource Divider}" Margin="-16,0,-16,12" />
-
-            <!-- Tiles (filled in code) -->
-            <UniformGrid x:Name="Tiles" Columns="3" />
-
-            <Border Height="1" Background="{DynamicResource Divider}" Margin="-16,10,-16,12" />
-
-            <!-- Sliders -->
-            <DockPanel x:Name="BrightnessRow" Margin="0,2,0,8">
-                <TextBlock Text="&#xE706;" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" Width="28" DockPanel.Dock="Left" />
-                <Slider x:Name="BrightnessSlider" Style="{StaticResource QsSlider}" Margin="8,0,36,0" />
-            </DockPanel>
-            <DockPanel Margin="0,2,0,6">
-                <TextBlock x:Name="VolumeGlyph" Text="&#xE767;" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" Width="28" DockPanel.Dock="Left"
-                           Cursor="Hand" Background="Transparent" MouseLeftButtonUp="Volume_ToggleMute" />
-                <Border DockPanel.Dock="Right" Style="{StaticResource BarButton}" Padding="6,4" Margin="6,0,0,0" ToolTip="Sound output"
-                        MouseLeftButtonUp="Volume_Output">
-                    <TextBlock Text="&#xE76C;" Style="{StaticResource QsGlyph}" FontSize="12" Foreground="{DynamicResource Fg}" />
-                </Border>
-                <Slider x:Name="VolumeSlider" Style="{StaticResource QsSlider}" Margin="8,0,0,0" />
-            </DockPanel>
-
-            <Border Height="1" Background="{DynamicResource Divider}" Margin="-16,8,-16,8" />
+            </local:GlassTile>
 
             <!-- Battery and settings -->
-            <DockPanel>
-                <Border DockPanel.Dock="Right" Style="{StaticResource BarButton}" Padding="8,6" Margin="0" ToolTip="All settings"
-                        MouseLeftButtonUp="OpenAllSettings">
-                    <TextBlock Text="&#xE713;" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" />
-                </Border>
-                <StackPanel x:Name="BatteryInfo" Orientation="Horizontal" VerticalAlignment="Center" Cursor="Hand" Background="Transparent"
-                            MouseLeftButtonUp="OpenBatterySettings">
-                    <TextBlock x:Name="BatteryGlyph" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" />
-                    <TextBlock x:Name="BatteryText" FontSize="13" Foreground="{DynamicResource Fg}" Margin="8,0,0,0" VerticalAlignment="Center" />
-                </StackPanel>
+            <DockPanel Grid.Row="4" Grid.ColumnSpan="3" Margin="0,10,0,0">
+                <local:GlassTile DockPanel.Dock="Right" Width="44" Height="44" CornerRadius="22" ToolTip="All settings">
+                    <Border Style="{StaticResource BarButton}" Margin="0" Padding="0" CornerRadius="22" MouseLeftButtonUp="OpenAllSettings">
+                        <TextBlock Text="&#xE713;" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" />
+                    </Border>
+                </local:GlassTile>
+                <local:GlassTile x:Name="BatteryInfo" HorizontalAlignment="Left" Height="44" CornerRadius="22">
+                    <Border Style="{StaticResource BarButton}" Margin="0" Padding="16,0" CornerRadius="22" MouseLeftButtonUp="OpenBatterySettings">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="BatteryGlyph" Style="{StaticResource QsGlyph}" Foreground="{DynamicResource Fg}" />
+                            <TextBlock x:Name="BatteryText" FontSize="13" Foreground="{DynamicResource Fg}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </local:GlassTile>
             </DockPanel>
-        </StackPanel>
+        </Grid>
     </Grid>
 </Window>

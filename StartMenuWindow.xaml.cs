@@ -36,7 +36,8 @@ public partial class StartMenuWindow : Window
             _hwnd = new WindowInteropHelper(this).Handle;
             int ex = Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE);
             Native.SetWindowLong(_hwnd, Native.GWL_EXSTYLE, (ex | Native.WS_EX_TOOLWINDOW) & ~Native.WS_EX_APPWINDOW);
-            int round = 2; // DWMWCP_ROUND
+            // With refraction the window is invisible (a backdrop of the screen behind it): no rounding, border or shadow.
+            int round = Settings.Current.Refraction ? Native.DWMWCP_DONOTROUND : 2 /* DWMWCP_ROUND */;
             Native.DwmSetWindowAttribute(_hwnd, Native.DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
             int none = Native.DWMWA_COLOR_NONE;
             Native.DwmSetWindowAttribute(_hwnd, Native.DWMWA_BORDER_COLOR, ref none, sizeof(int));
@@ -46,6 +47,10 @@ public partial class StartMenuWindow : Window
         Deactivated += (_, _) => { if (!_menuOpen) Dismiss(); };
         PreviewKeyDown += Window_PreviewKeyDown;
         _ = LoadUserAsync();
+        Glass.MakeBackdrop();
+        GlassTile.ConnectAll(Glass, Body);
+        // A click in a gap between the pieces of glass is a click on the desktop: close, like a click outside.
+        PreviewMouseDown += (_, e) => { if (Settings.Current.Refraction && !_menuOpen && !GlassTile.IsOnTile(e.OriginalSource as DependencyObject)) Dismiss(); };
     }
 
     private readonly PanelAnimation _anim;
