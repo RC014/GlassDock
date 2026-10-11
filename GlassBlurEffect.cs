@@ -30,9 +30,16 @@ public sealed class GlassBlurEffect : ShaderEffect
     public static readonly DependencyProperty RadiusProperty = DependencyProperty.Register(
         nameof(Radius), typeof(double), typeof(GlassBlurEffect), new UIPropertyMetadata(0.0, PixelShaderConstantCallback(3)));
 
+    /// <summary>Size of the input (the glass plus a margin all round), in glass heights; matches LensEffect.</summary>
+    public static readonly DependencyProperty BigProperty = DependencyProperty.Register(
+        nameof(Big), typeof(Point), typeof(GlassBlurEffect), new UIPropertyMetadata(new Point(8, 1), PixelShaderConstantCallback(4)));
+
+    public Point Big { get => (Point)GetValue(BigProperty); set => SetValue(BigProperty, value); }
+
     public GlassBlurEffect()
     {
         PixelShader = Shader;
+        UpdateShaderValue(BigProperty);
         UpdateShaderValue(InputProperty);
         UpdateShaderValue(DirectionProperty);
         UpdateShaderValue(AspectProperty);

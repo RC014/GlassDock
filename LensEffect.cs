@@ -30,9 +30,16 @@ public sealed class LensEffect : ShaderEffect
     public static readonly DependencyProperty RadiusProperty = DependencyProperty.Register(
         nameof(Radius), typeof(double), typeof(LensEffect), new UIPropertyMetadata(0.0, PixelShaderConstantCallback(4)));
 
+    /// <summary>Size of the input (the glass plus a margin all round), in glass heights.</summary>
+    public static readonly DependencyProperty BigProperty = DependencyProperty.Register(
+        nameof(Big), typeof(Point), typeof(LensEffect), new UIPropertyMetadata(new Point(8, 1), PixelShaderConstantCallback(5)));
+
+    public Point Big { get => (Point)GetValue(BigProperty); set => SetValue(BigProperty, value); }
+
     public LensEffect()
     {
         PixelShader = Shader;
+        UpdateShaderValue(BigProperty);
         UpdateShaderValue(InputProperty);
         UpdateShaderValue(StrengthProperty);
         UpdateShaderValue(AspectProperty);

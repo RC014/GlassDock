@@ -8,12 +8,12 @@ float2 dir     : register(c0); // full blur radius in uv units along this pass's
 float  aspect  : register(c1); // width / height of the glass
 float  band    : register(c2); // same as Lens.fx (not used here: the blur grows all the way to the centre)
 float  radius  : register(c3); // same as Lens.fx
+float2 big     : register(c4); // same as Lens.fx: the input is the glass plus a margin all round
 
 float4 main(float2 uv : TEXCOORD) : COLOR
 {
-    float2 scale = float2(aspect, 1);
-    float2 p = (uv - 0.5) * scale;
-    float2 q = abs(p) - (scale * 0.5 - radius);
+    float2 p = (uv - 0.5) * big;
+    float2 q = abs(p) - (float2(aspect, 1) * 0.5 - radius);
     float d = length(max(q, 0)) + min(max(q.x, q.y), 0) - radius;
     // 0 at the rim, 1 at the centre (half the short side in): the blur keeps growing all the way in, quickly
     // at first, then more gently

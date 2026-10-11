@@ -31,6 +31,13 @@ public sealed class GlassSurface : Grid
     /// <summary>Blur radius at the centre line, in DIPs, at 100% blur.</summary>
     private const double MaxBlurDip = 18;
 
+    // The glass bends light outwards: its rim shows what lies just outside it. So the screen is captured with a margin
+    // all round (CaptureMarginDip), and the lens works on the glass plus a margin of its own (_lensMargin, DIPs).
+    private const double CaptureMarginDip = 48;
+    private int _captureMarginPx;
+    private double _lensMargin;
+    private FrameworkElement _lensTop = null!;
+
     // screen sampling buffers
     private IntPtr _memDc, _dib, _bits;
     private int _w, _h;
@@ -55,6 +62,7 @@ public sealed class GlassSurface : Grid
                 _blurV.Effect = _blurVEffect;
                 top = _blurV;
             }
+            _lensTop = (FrameworkElement)top;
             _lensHost.Children.Add(top);
             Children.Add(_lensHost);
             Loaded += (_, _) => { if (_source == null) ScreenSampler.Register(this); };
@@ -114,6 +122,9 @@ public sealed class GlassSurface : Grid
         _blurV.Child = null;
         _blurH.Child = null;
         _lensImage.Effect = null;
+        _lensImage.Margin = new Thickness(0);
+        _lensTop = _lensImage;
+        _lensMargin = 0;
         _lensHost.Children.Clear();
         _lensHost.Children.Add(_lensImage);
         Children.Add(_lensHost);
@@ -159,15 +170,21 @@ public sealed class GlassSurface : Grid
             // and BandScale narrow it. Its rounded rectangle uses at least the bevel width as corner radius, so the
             // bending turns smoothly round the corners.
             double minDim = Math.Min(ActualWidth, ActualHeight);
-            // (and at least 15% of the short side, so big panels get an edge in proportion, like the bars)
-            double band = Math.Clamp(Math.Max(Math.Max(r, 16), minDim * 0.15) * Settings.Current.RefractionEdge * BandScale, 2, minDim / 2);
+            // (The bevel must follow the visible corners: wider than their rounding, lines near a corner would be pushed
+            // towards a rounder, imaginary corner instead of curving along the real one. Big glass gets bigger rounding.)
+            double band = Math.Clamp(Math.Max(r, 16) * Settings.Current.RefractionEdge * BandScale, 2, minDim / 2);
             double radius = Math.Min(Math.Max(r, band), minDim / 2);
             _lens.Band = _blurHEffect.Band = _blurVEffect.Band = band / ActualHeight;
             _lens.Radius = _blurHEffect.Radius = _blurVEffect.Radius = radius / ActualHeight;
             // blur radius at the centre line (fading to none at the rim), per pass direction, in uv units
             double blurDip = Settings.Current.RefractionBlur * MaxBlurDip;
-            _blurHEffect.Direction = new Point(blurDip / Math.Max(1, ActualWidth), 0);
-            _blurVEffect.Direction = new Point(0, blurDip / ActualHeight);
+            // the lens's margin: room for the outward bend (half the bevel at full strength) plus a little
+            _lensMargin = Math.Min(Math.Ceiling(band * 0.55) + 2, CaptureMarginDip - 4);
+            if (_lensTop != null) _lensTop.Margin = new Thickness(-_lensMargin);
+            double bigW = ActualWidth + 2 * _lensMargin, bigH = ActualHeight + 2 * _lensMargin;
+            _lens.Big = _blurHEffect.Big = _blurVEffect.Big = new Point(bigW / ActualHeight, bigH / ActualHeight);
+            _blurHEffect.Direction = new Point(blurDip / bigW, 0);
+            _blurVEffect.Direction = new Point(0, blurDip / bigH);
         }
     }
 
@@ -203,7 +220,9 @@ public sealed class GlassSurface : Grid
         Native.RECT rest;
         if (window is GlassWindow bar) rest = bar.RestRectPx;
         else if (!Native.GetWindowRect(new System.Windows.Interop.WindowInteropHelper(window).Handle, out rest)) return;
-        int x = rest.Left, y = rest.Top, w = rest.Right - rest.Left, h = rest.Bottom - rest.Top;
+        _captureMarginPx = (int)Math.Ceiling(CaptureMarginDip * VisualTreeHelper.GetDpi(this).DpiScaleX);
+        int x = rest.Left - _captureMarginPx, y = rest.Top - _captureMarginPx;
+        int w = rest.Right - rest.Left + 2 * _captureMarginPx, h = rest.Bottom - rest.Top + 2 * _captureMarginPx;
         if (w < 2 || h < 2) return;
 
         if (w != _w || h != _h || _bitmap == null)
@@ -226,6 +245,7 @@ public sealed class GlassSurface : Grid
         if (_curr.Length != len) _curr = new byte[len];
         Marshal.Copy(_bits, _curr, 0, len);
         if (TestBackground.Value is { } test) test.CopyTo(_curr, x, y, w, h);
+        RepeatEdges(_curr, x, y, w, h);
         if (!_curr.AsSpan().SequenceEqual(_prev))
         {
             _bitmap.WritePixels(new Int32Rect(0, 0, w, h), _curr, w * 4, 0);
@@ -296,8 +316,32 @@ public sealed class GlassSurface : Grid
             tl = toWindow.Transform(new Point(0, 0));
             br = toWindow.Transform(new Point(ActualWidth, ActualHeight));
         }
-        var box = new Rect((tl.X + shift) * s, tl.Y * s, Math.Max(1, (br.X - tl.X) * s), Math.Max(1, (br.Y - tl.Y) * s));
+        // the capture starts a margin before the window; the lens takes its own margin round the glass
+        double cap = (_source ?? this)._captureMarginPx, m = _lensMargin * s;
+        var box = new Rect((tl.X + shift) * s + cap - m, tl.Y * s + cap - m, Math.Max(1, (br.X - tl.X) * s + 2 * m), Math.Max(1, (br.Y - tl.Y) * s + 2 * m));
         if (box != _lensBrush.Viewbox) _lensBrush.Viewbox = box;
+    }
+
+    /// <summary>
+    /// Parts of the capture beyond the screen's edges (the margin round glass near an edge, e.g. under the dock)
+    /// come back black: repeat the nearest on-screen pixels there instead, as if the picture went on.
+    /// </summary>
+    private static void RepeatEdges(byte[] buf, int x, int y, int w, int h)
+    {
+        int cx = Native.GetSystemMetrics(Native.SM_CXSCREEN), cy = Native.GetSystemMetrics(Native.SM_CYSCREEN);
+        if (x >= 0 && y >= 0 && x + w <= cx && y + h <= cy) return;
+        int c0 = Math.Clamp(-x, 0, w), c1 = Math.Clamp(cx - x, 0, w); // on-screen columns [c0, c1)
+        int r0 = Math.Clamp(-y, 0, h), r1 = Math.Clamp(cy - y, 0, h); // on-screen rows [r0, r1)
+        if (c1 <= c0 || r1 <= r0) return;
+        int stride = w * 4;
+        for (int r = r0; r < r1; r++)
+        {
+            int row = r * stride;
+            for (int c = 0; c < c0; c++) Buffer.BlockCopy(buf, row + c0 * 4, buf, row + c * 4, 4);
+            for (int c = c1; c < w; c++) Buffer.BlockCopy(buf, row + (c1 - 1) * 4, buf, row + c * 4, 4);
+        }
+        for (int r = 0; r < r0; r++) Buffer.BlockCopy(buf, r0 * stride, buf, r * stride, stride);
+        for (int r = r1; r < h; r++) Buffer.BlockCopy(buf, (r1 - 1) * stride, buf, r * stride, stride);
     }
 
     /// <summary>Where <paramref name="v"/> sits inside <paramref name="root"/> by layout alone (no render transforms).</summary>
