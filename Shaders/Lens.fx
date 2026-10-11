@@ -26,11 +26,11 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     float2 p = (uv - 0.5) * big;                                    // from the glass's centre, in glass heights
     float2 halfSize = float2(aspect, 1) * 0.5;
 
-    // depth inside the glass's rounded rectangle -> thickness: 0 at the edge, rising smoothly to 1 at `band` in
+    // depth inside the glass's rounded rectangle -> thickness: 0 at the edge, rising along a circular arc to 1 at `band` in
     float2 q = abs(p) - (halfSize - radius);
     float d = length(max(q, 0)) + min(max(q.x, q.y), 0) - radius;  // < 0 inside the glass
     float t = saturate(-d / band);
-    float thick = t * t * (3 - 2 * t);
+    float thick = sqrt(t * (2 - t));                                // a lens's edge: a circular arc, steep at the rim, level at the plateau
 
     // magnification on the plateau: the shift there is about `strength` x 0.6 x the edge width at the plateau's
     // border; across the short side, and scaled down along a long side so both shift alike
