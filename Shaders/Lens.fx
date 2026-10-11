@@ -34,7 +34,9 @@ float4 main(float2 uv : TEXCOORD) : COLOR
     // width (at full strength), growing as u^2: the bend steepens towards the rim, so what's just inside the glass
     // is magnified more and more towards the edge - but never so steeply that the picture folds back on itself
     // (that would mirror and smear the background at the rim).
-    float u = saturate(1 + d / band);
+    // Not capped at the rim: in a corner sharper than the bevel's rounding the real edge lies a little beyond the
+    // rounded rectangle, and the bend keeps growing smoothly up to it (capping it there kinked lines along that curve).
+    float u = max(1 + d / band, 0);
     float2 off = n * (strength * band * 0.35 * u * u) / scale;
 
     // dispersion: red bends a little less, blue a little more (a faint fringe, not a colour split)
