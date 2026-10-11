@@ -51,7 +51,7 @@ The bars stay hidden and float over your windows; they never take screen space a
 - Push it against the **bottom edge on the right half of the screen** to bring up the status bar.
 - Each bar slides away about a tenth of a second after the cursor leaves it. It stays up while one of its menus, the hidden-icons panel or a window preview is open.
 - Switching to another window closes any open menus and hides the bars.
-- The bars don't appear over full-screen games and videos.
+- The bars don't appear over full-screen games and videos (including a browser in full screen, even one that was maximised before).
 
 ## Dock
 

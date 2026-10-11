@@ -124,18 +124,28 @@ internal sealed class AutoHide
         if (sb.ToString() is "Progman" or "WorkerW" or "Shell_TrayWnd") return false;
 
         // Windows' own signal for exclusive full-screen games and presentation mode.
-        if (SHQueryUserNotificationState(out int state) == 0 && state is QUNS_RUNNING_D3D_FULL_SCREEN or QUNS_PRESENTATION_MODE)
-            return true;
+        bool known = SHQueryUserNotificationState(out int state) == 0;
+        if (known && state is QUNS_RUNNING_D3D_FULL_SCREEN or QUNS_PRESENTATION_MODE) return true;
 
-        // Maximised windows cover the whole screen too (there's no taskbar), so they don't count;
-        // only borderless windows that fill the screen, like videos and borderless games, do.
-        if (IsZoomed(fg) || (Native.GetWindowLong(fg, GWL_STYLE) & WS_CAPTION) == WS_CAPTION) return false;
-        return Native.GetWindowRect(fg, out var r) && r.Left <= 0 && r.Top <= 0 &&
-               r.Right >= Native.GetSystemMetrics(Native.SM_CXSCREEN) && r.Bottom >= Native.GetSystemMetrics(Native.SM_CYSCREEN);
+        if (!Native.GetWindowRect(fg, out var r) || r.Left > 0 || r.Top > 0 ||
+            r.Right < Native.GetSystemMetrics(Native.SM_CXSCREEN) || r.Bottom < Native.GetSystemMetrics(Native.SM_CYSCREEN))
+            return false;
+
+        // It fills the screen. Maximised windows do that too (there's no taskbar), and they don't count. A window in
+        // full screen has no title bar or resizing frame - videos, borderless games, a browser in full screen - and
+        // that holds even when it was maximised before (Windows then still reports it as maximised). A maximised
+        // window without a title bar but with a resizing frame is an app that draws its own title bar.
+        int style = Native.GetWindowLong(fg, GWL_STYLE);
+        bool caption = (style & WS_CAPTION) == WS_CAPTION, frame = (style & WS_THICKFRAME) != 0;
+        bool zoomed = IsZoomed(fg);
+        if (!caption && !(zoomed && frame)) return true;
+        // Apps that keep their title-bar style in full screen: trust Windows' "a full-screen app is running" then,
+        // but never for a maximised window.
+        return !zoomed && known && state == QUNS_BUSY;
     }
 
-    private const int GWL_STYLE = -16, WS_CAPTION = 0x00C00000;
-    private const int QUNS_RUNNING_D3D_FULL_SCREEN = 3, QUNS_PRESENTATION_MODE = 4;
+    private const int GWL_STYLE = -16, WS_CAPTION = 0x00C00000, WS_THICKFRAME = 0x00040000;
+    private const int QUNS_BUSY = 2, QUNS_RUNNING_D3D_FULL_SCREEN = 3, QUNS_PRESENTATION_MODE = 4;
     [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr hWnd);
     [DllImport("shell32.dll")] private static extern int SHQueryUserNotificationState(out int state);
 
