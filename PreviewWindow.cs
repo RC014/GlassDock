@@ -157,6 +157,7 @@ internal sealed class PreviewWindow : Window
         card.MouseLeave += (_, _) => card.Background = Brushes.Transparent;
         card.MouseLeftButtonUp += (_, _) =>
         {
+            ClickLog.Note(Item?.Name ?? "?", Item?.Windows ?? (IEnumerable<ApplicationWindow>)new[] { w }, "preview clicked: bring to front", w);
             w.BringToFront();
             HideNow();
         };
