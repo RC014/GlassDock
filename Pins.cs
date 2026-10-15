@@ -79,8 +79,12 @@ internal static class Pins
         // File Explorer's own shortcut (the one Windows pins to its taskbar, which GlassDock imports, or its Start entry)
         // points at the "File Explorer" folder rather than explorer.exe, and Explorer's windows carry no app id, so
         // nothing would tie them to the pin and they'd get an icon of their own: give the pin the program too.
+        // (Keep its own name, e.g. "File Explorer": explorer.exe's description says "Windows Explorer".)
         if (item.ExePath == null && string.Equals(item.AppUserModelId, ExplorerAumid, StringComparison.OrdinalIgnoreCase))
+        {
             item.ExePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            if (string.IsNullOrEmpty(item.Name)) item.Name = Shell.GetDisplayName(path) ?? "File Explorer";
+        }
 
         if (string.IsNullOrEmpty(item.Name))
             item.Name = (item.ExePath != null ? ExeDescription(item.ExePath) : null) ?? Shell.GetDisplayName(path) ?? Path.GetFileNameWithoutExtension(path);
@@ -275,6 +279,31 @@ internal static class Pins
             return _startApps.Select(a => a.Id).FirstOrDefault(id => id.StartsWith(family + "!", StringComparison.OrdinalIgnoreCase));
         }
         catch { return null; }
+    }
+
+    /// <summary>Whether a pin is File Explorer (by its program or its app id).</summary>
+    private static bool IsExplorerPin(DockItem pin) =>
+        IsExplorer(pin.ExePath) || string.Equals(pin.AppUserModelId, ExplorerAumid, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether programs may be learned as belonging to this pin (see DockWindow.LearnFromLaunch): not File Explorer,
+    /// which isn't a launcher - what appears after clicking it is a document opened in its own program.
+    /// </summary>
+    public static bool MayLearnFor(DockItem pin) => pin.PinPath != null && !IsExplorerPin(pin);
+
+    /// <summary>
+    /// Forgets programs learned for pins that can't have any. Before 1.9.8 a File Explorer pin made from Windows' own
+    /// shortcut didn't recognise Explorer's windows, so it looked not running when clicked, and the next program
+    /// opened (e.g. Excel, for a spreadsheet opened from Explorer) was learned as its own: its windows then gathered on
+    /// the File Explorer icon. Returns whether anything was forgotten.
+    /// </summary>
+    public static bool ForgetWrongAliases(System.Collections.Generic.IEnumerable<DockItem> pins)
+    {
+        var aliases = Settings.Current.PinAliases;
+        var wrong = pins.Where(p => p.PinPath != null && !MayLearnFor(p)).Select(p => p.PinPath!).ToList();
+        var forget = aliases.Where(a => wrong.Contains(a.Value, StringComparer.OrdinalIgnoreCase)).Select(a => a.Key).ToList();
+        foreach (var exe in forget) aliases.Remove(exe);
+        return forget.Count > 0;
     }
 
     /// <summary>Whether this program may be learned as belonging to a pin (not Windows' own shell processes).</summary>

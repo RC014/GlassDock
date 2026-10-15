@@ -58,6 +58,7 @@ public partial class DockWindow : GlassWindow
         MouseMove += (_, _) => StartMagnifier();
 
         foreach (var path in Settings.Current.Pinned) _pinned.Add(Pins.CreatePinned(path));
+        if (Pins.ForgetWrongAliases(_pinned)) Settings.Save();
 
         var tasks = App.Shell.TasksService;
         ((INotifyCollectionChanged)AllWindowsSource).CollectionChanged += Windows_CollectionChanged;
@@ -160,7 +161,7 @@ public partial class DockWindow : GlassWindow
     {
         if (_pendingLaunch is not { } launch || (DateTime.Now - launch.At).TotalSeconds > 30) return null;
         var pin = launch.Item;
-        if (!_pinned.Contains(pin) || pin.Windows.Count > 0 || pin.PinPath == null || !Pins.CanLearn(w)) return null;
+        if (!_pinned.Contains(pin) || pin.Windows.Count > 0 || !Pins.MayLearnFor(pin) || !Pins.CanLearn(w)) return null;
         try
         {
             using var process = System.Diagnostics.Process.GetProcessById(Convert.ToInt32(w.ProcId));
