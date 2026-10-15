@@ -17,7 +17,8 @@ internal sealed class AutoHide
 {
     private const double ShowSeconds = 0.22, HideSeconds = 0.15;
     private static readonly TimeSpan EdgeDwell = TimeSpan.FromMilliseconds(60);
-    private static readonly TimeSpan HideDelay = TimeSpan.FromMilliseconds(120);
+    /// <summary>How long a bar stays up after the cursor leaves it (the HideDelay setting).</summary>
+    private static TimeSpan HideDelay => TimeSpan.FromSeconds(Settings.Current.HideDelay);
     private static readonly TimeSpan MinShown = TimeSpan.FromMilliseconds(450);
 
     private readonly GlassWindow[] _bars;

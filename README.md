@@ -129,6 +129,7 @@ Menus close by themselves when you move the cursor away from them.
 | `GlassHighlights` | 0.45 | Strength of the glass's white shine, edge glow and rim (lower = less white) |
 | `BottomMargin` / `SideMargin` | 6 | Gap between the bubbles and the screen edges |
 | `AutoHide` | true | Show the bars only when the cursor touches the bottom edge |
+| `HideDelay` | 0.1 | With `AutoHide`: seconds the dock and the status bar stay up after the cursor leaves them (0–10) |
 | `ReserveScreenSpace` | false | With `AutoHide` off: maximised windows stop above the dock |
 | `HideWindowsTaskbar` | true | Hide the original Windows taskbar while GlassDock runs |
 | `ShowSeconds`, `ShowDate` | false, true | Clock options |

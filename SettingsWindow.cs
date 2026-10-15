@@ -65,6 +65,7 @@ internal sealed class SettingsWindow : Window
 
         Section("Behaviour");
         Check("Auto-hide (show when the cursor touches the bottom edge)", () => _s.AutoHide, v => _s.AutoHide = v);
+        Slider("Auto-hide: dock and clock stay up after the cursor leaves", () => _s.HideDelay, v => _s.HideDelay = v, 0, 5, 0.1, "0.0' s'");
         Check("Hide the Windows taskbar", () => _s.HideWindowsTaskbar, v => _s.HideWindowsTaskbar = v);
         Check("Start with Windows", () => App.StartsWithWindows, v => App.StartsWithWindows = v);
 

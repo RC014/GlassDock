@@ -48,6 +48,8 @@ internal sealed class Settings
     [JsonIgnore] public double EffectiveRefractionFps => LowPowerMode ? 5 : RefractionFps;
     /// <summary>Hide the bars until the cursor touches the bottom edge of the screen; they float over apps.</summary>
     public bool AutoHide { get; set; } = true;
+    /// <summary>With AutoHide: how long (seconds) the dock and the status bar stay up after the cursor leaves them.</summary>
+    public double HideDelay { get; set; } = 0.1;
     /// <summary>Only when AutoHide is off: keep maximised windows above the dock.</summary>
     public bool ReserveScreenSpace { get; set; } = false;
     /// <summary>Wave magnification of dock icons under the cursor (1 = off).</summary>
@@ -118,6 +120,7 @@ internal sealed class Settings
         Current.RefractionStrength = Math.Clamp(Current.RefractionStrength, 0, 1);
         Current.RefractionBlur = Math.Clamp(Current.RefractionBlur, 0, 1);
         Current.RefractionFps = Math.Clamp(Math.Round(Current.RefractionFps), 5, 60);
+        Current.HideDelay = Math.Clamp(Current.HideDelay, 0, 10);
         Current.RefractionEdge = Math.Clamp(Current.RefractionEdge, 0.1, 1);
     }
 
