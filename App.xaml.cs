@@ -172,6 +172,16 @@ public partial class App : Application
         catch (Exception ex) { Log(ex); }
     }
 
+    /// <summary>The dock's Start button is pressed (see <see cref="StartMenuWindow.StartButtonPressed"/>).</summary>
+    internal static void StartButtonPressed() => _startMenu?.StartButtonPressed();
+
+    /// <summary>The dock's Start button is clicked: opens the menu, unless the press already closed it.</summary>
+    internal static void StartButtonReleased()
+    {
+        if (_startMenu?.ConsumeStartRelease() == true) return;
+        ToggleStartMenu();
+    }
+
     /// <summary>
     /// Shows the dock under the open Start menu - once the menu has finished opening: the dock's slide drawn at the
     /// same time as the menu's animation would make the menu stutter.

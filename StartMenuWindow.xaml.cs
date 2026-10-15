@@ -64,6 +64,26 @@ public partial class StartMenuWindow : Window
 
     // ---------------- open / close ----------------
 
+    private bool _pressClosed; // the current press on the dock's Start button closed the menu
+
+    /// <summary>
+    /// The dock's Start button is being pressed. If the menu is open - or this very press has just closed it by
+    /// taking the focus away - the press closes it, and its release mustn't open it again (however long it's held).
+    /// </summary>
+    internal void StartButtonPressed()
+    {
+        _pressClosed = (IsVisible && !_anim.IsClosing) || (DateTime.Now - _hiddenAt).TotalMilliseconds < 300;
+        if (_pressClosed) Dismiss();
+    }
+
+    /// <summary>True (once) if the press of the dock's Start button closed the menu: its release then does nothing.</summary>
+    internal bool ConsumeStartRelease()
+    {
+        bool closed = _pressClosed;
+        _pressClosed = false;
+        return closed;
+    }
+
     /// <summary>Opens the menu, or closes it if it's open.</summary>
     internal void Toggle()
     {

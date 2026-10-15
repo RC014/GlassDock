@@ -83,7 +83,8 @@ internal sealed class AutoHide
             if (inside) _lastInside = Max(_lastInside, now);
             else if (now - _lastInside > HideDelay) SetShown(false);
         }
-        else if (atEdge && !ForegroundIsFullScreen())
+        else if (atEdge && ForegroundIsFullScreen()) NoteFullScreen();
+        else if (atEdge)
         {
             _edgeSince ??= now;
             if (now - _edgeSince >= EdgeDwell)
@@ -94,6 +95,39 @@ internal sealed class AutoHide
             }
         }
         else _edgeSince = null;
+    }
+
+    private static IntPtr _notedFullScreen;
+
+    /// <summary>
+    /// The cursor is on the edge but the bar stays down because the window in front counts as full screen. Notes
+    /// that window (once per window) in fullscreen.log in the settings folder, to see why if it shouldn't have.
+    /// </summary>
+    private void NoteFullScreen()
+    {
+        _edgeSince = null;
+        var fg = Native.GetForegroundWindow();
+        if (fg == _notedFullScreen) return;
+        _notedFullScreen = fg;
+        try
+        {
+            GetWindowThreadProcessId(fg, out uint pid);
+            string process = "?";
+            try { process = Process.GetProcessById((int)pid).ProcessName; } catch { }
+            var cls = new StringBuilder(64);
+            Native.GetClassName(fg, cls, cls.Capacity);
+            int style = Native.GetWindowLong(fg, GWL_STYLE);
+            Native.GetWindowRect(fg, out var r);
+            SHQueryUserNotificationState(out int state);
+            string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {process} ({cls}): style 0x{style:X8}, title bar {(style & WS_CAPTION) == WS_CAPTION}, " +
+                          $"resizing frame {(style & WS_THICKFRAME) != 0}, maximised {IsZoomed(fg)}, rect {r.Left},{r.Top},{r.Right},{r.Bottom}, " +
+                          $"screen {Native.GetSystemMetrics(Native.SM_CXSCREEN)}x{Native.GetSystemMetrics(Native.SM_CYSCREEN)}, notification state {state}";
+            string path = System.IO.Path.Combine(Settings.Folder, "fullscreen.log");
+            var lines = new System.Collections.Generic.List<string>(System.IO.File.Exists(path) ? System.IO.File.ReadAllLines(path) : Array.Empty<string>()) { line };
+            if (lines.Count > 40) lines.RemoveRange(0, lines.Count - 40);
+            System.IO.File.WriteAllLines(path, lines);
+        }
+        catch { }
     }
 
     /// <summary>Shows the bars and keeps them up for at least <paramref name="duration"/> (e.g. so you can see
@@ -123,6 +157,13 @@ internal sealed class AutoHide
         Native.GetClassName(fg, sb, sb.Capacity);
         if (sb.ToString() is "Progman" or "WorkerW" or "Shell_TrayWnd") return false;
 
+        // An ordinary app window - with a title bar and a resizing frame, even one that draws its own title bar (a
+        // browser, Telegram) - is never full screen, however big it is and whatever Windows' "busy" state says
+        // (which can be set by other things, e.g. presentation settings or another app).
+        int style = Native.GetWindowLong(fg, GWL_STYLE);
+        bool caption = (style & WS_CAPTION) == WS_CAPTION, frame = (style & WS_THICKFRAME) != 0;
+        if (caption && frame) return false;
+
         // Windows' own signal for exclusive full-screen games and presentation mode.
         bool known = SHQueryUserNotificationState(out int state) == 0;
         if (known && state is QUNS_RUNNING_D3D_FULL_SCREEN or QUNS_PRESENTATION_MODE) return true;
@@ -135,8 +176,6 @@ internal sealed class AutoHide
         // full screen has no title bar or resizing frame - videos, borderless games, a browser in full screen - and
         // that holds even when it was maximised before (Windows then still reports it as maximised). A maximised
         // window without a title bar but with a resizing frame is an app that draws its own title bar.
-        int style = Native.GetWindowLong(fg, GWL_STYLE);
-        bool caption = (style & WS_CAPTION) == WS_CAPTION, frame = (style & WS_THICKFRAME) != 0;
         bool zoomed = IsZoomed(fg);
         if (!caption && !(zoomed && frame)) return true;
         // Apps that keep their title-bar style in full screen: trust Windows' "a full-screen app is running" then,

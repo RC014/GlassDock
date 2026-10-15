@@ -31,7 +31,7 @@ internal static class WindowsOsd
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string? title);
     [DllImport("user32.dll")] private static extern bool SetLayeredWindowAttributes(IntPtr h, uint key, byte alpha, uint flags);
     [DllImport("user32.dll")] private static extern bool GetLayeredWindowAttributes(IntPtr h, out uint key, out byte alpha, out uint flags);
-    private const int WS_EX_LAYERED = 0x80000;
+    private const int WS_EX_LAYERED = 0x80000, WS_EX_TRANSPARENT = 0x20;
     private const uint LWA_ALPHA = 2;
     private const string OsdClass = "XamlExplorerHostIslandWindow";
 
@@ -89,14 +89,20 @@ internal static class WindowsOsd
     }
 
     /// <summary>
-    /// Makes the pop-up window fully transparent (and so click-through) while leaving it to explorer otherwise: it
-    /// still "shows", but nothing appears on screen. Returns true if it wasn't transparent yet.
+    /// Makes the pop-up window fully transparent and click-through while leaving it to explorer otherwise: it still
+    /// "shows", but nothing appears on screen. Returns true if it wasn't like that yet.
+    /// <para>
+    /// Transparent alone isn't enough: the window is always on top, over the middle of the dock, and stays for a
+    /// couple of seconds after each volume or brightness change (on waking up from sleep, too), and an invisible
+    /// window still takes the clicks meant for the dock's icons underneath. WS_EX_TRANSPARENT lets them through.
+    /// </para>
     /// </summary>
     private static bool MakeInvisible(IntPtr hwnd)
     {
         int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
-        if ((ex & WS_EX_LAYERED) != 0 && GetLayeredWindowAttributes(hwnd, out _, out byte alpha, out _) && alpha == 0) return false;
-        Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | WS_EX_LAYERED);
+        if ((ex & (WS_EX_LAYERED | WS_EX_TRANSPARENT)) == (WS_EX_LAYERED | WS_EX_TRANSPARENT) &&
+            GetLayeredWindowAttributes(hwnd, out _, out byte alpha, out _) && alpha == 0) return false;
+        Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | WS_EX_LAYERED | WS_EX_TRANSPARENT);
         SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
         return true;
     }
@@ -111,7 +117,7 @@ internal static class WindowsOsd
                 int ex = Native.GetWindowLong(h, Native.GWL_EXSTYLE);
                 if ((ex & WS_EX_LAYERED) == 0) continue;
                 SetLayeredWindowAttributes(h, 0, 255, LWA_ALPHA);
-                Native.SetWindowLong(h, Native.GWL_EXSTYLE, ex & ~WS_EX_LAYERED);
+                Native.SetWindowLong(h, Native.GWL_EXSTYLE, ex & ~(WS_EX_LAYERED | WS_EX_TRANSPARENT));
             }
         }
         catch { }

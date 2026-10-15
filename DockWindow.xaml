@@ -146,7 +146,7 @@
 
         <StackPanel x:Name="IconStrip" Grid.Row="1" Orientation="Horizontal" Margin="9,8,9,2" HorizontalAlignment="Center"
                     MouseRightButtonUp="Bar_MouseRightButtonUp">
-            <Grid x:Name="StartCell" Margin="3,0" MouseLeftButtonUp="Start_Click" MouseRightButtonUp="Start_RightClick">
+            <Grid x:Name="StartCell" Margin="3,0" PreviewMouseLeftButtonDown="Start_Press" MouseLeftButtonUp="Start_Click" MouseRightButtonUp="Start_RightClick">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="7" />

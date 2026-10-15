@@ -247,8 +247,13 @@ public partial class DockWindow : GlassWindow
     private void Start_Click(object sender, MouseButtonEventArgs e)
     {
         HideLabel();
-        if (Settings.Current.GlassStartMenu) App.ToggleStartMenu();
+        if (Settings.Current.GlassStartMenu) App.StartButtonReleased();
         else Native.SendWinCombo();
+    }
+
+    private void Start_Press(object sender, MouseButtonEventArgs e)
+    {
+        if (Settings.Current.GlassStartMenu) App.StartButtonPressed();
     }
 
     /// <summary>Right-clicking the Start button opens the GlassDock menu (Task Manager, settings, quit...).</summary>
