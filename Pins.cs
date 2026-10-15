@@ -76,6 +76,12 @@ internal static class Pins
             }
         }
 
+        // File Explorer's own shortcut (the one Windows pins to its taskbar, which GlassDock imports, or its Start entry)
+        // points at the "File Explorer" folder rather than explorer.exe, and Explorer's windows carry no app id, so
+        // nothing would tie them to the pin and they'd get an icon of their own: give the pin the program too.
+        if (item.ExePath == null && string.Equals(item.AppUserModelId, ExplorerAumid, StringComparison.OrdinalIgnoreCase))
+            item.ExePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+
         if (string.IsNullOrEmpty(item.Name))
             item.Name = (item.ExePath != null ? ExeDescription(item.ExePath) : null) ?? Shell.GetDisplayName(path) ?? Path.GetFileNameWithoutExtension(path);
         item.Icon = Shell.GetIcon(path, IconPx)
