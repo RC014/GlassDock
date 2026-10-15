@@ -393,7 +393,7 @@ public sealed class GlassSurface : Grid
     }
 
     /// <summary>Where <paramref name="v"/> sits inside <paramref name="root"/> by layout alone (no render transforms).</summary>
-    private static Vector LayoutOffset(Visual v, Visual root)
+    internal static Vector LayoutOffset(Visual v, Visual root)
     {
         var offset = new Vector();
         for (DependencyObject? d = v; d != null && d != root; d = VisualTreeHelper.GetParent(d))

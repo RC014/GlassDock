@@ -32,8 +32,6 @@ internal static class Theme
         r["Indicator"] = Brush(l ? Color.FromArgb(0xD0, 0x10, 0x10, 0x10) : Color.FromArgb(0xE8, 0xFF, 0xFF, 0xFF));
         r["HoverFill"] = Brush(l ? Color.FromArgb(0x26, 0x00, 0x00, 0x00) : Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF));
         r["MenuBg"] = Brush(l ? Color.FromArgb(0xF0, 0xF7, 0xF7, 0xF7) : Color.FromArgb(0xF0, 0x26, 0x26, 0x2A));
-        // the same, solid: under each piece of a see-through panel when there's no refraction (GlassTile)
-        r["PanelFill"] = Brush(l ? Color.FromRgb(0xF7, 0xF7, 0xF7) : Color.FromRgb(0x26, 0x26, 0x2A));
         r["MenuStroke"] = Brush(l ? Color.FromArgb(0x30, 0, 0, 0) : Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF));
         r["Divider"] = Brush(l ? Color.FromArgb(0x30, 0, 0, 0) : Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
 

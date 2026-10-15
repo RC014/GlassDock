@@ -124,7 +124,7 @@ Menus close by themselves when you move the cursor away from them.
 | `RefractionFps` | 20 | How many times a second the glass updates what's behind it (5–60; lower = lighter on the PC) |
 | `LowPowerMode` | false | For weaker PCs: no open/close animations on the Start menu and Quick Settings, and the glass updates only 5 times a second |
 | `CheckForUpdates` | true | Look for a new GlassDock version on GitHub shortly after start and once a day |
-| `GlassBlur` | 0 | When refraction is off: 1 = frosted glass (Windows blur), 0 = clear glass |
+| `GlassBlur` | 0 | When refraction is off: 1 = frosted glass (Windows blur), 0 = clear glass (for the bars and for every piece of the Start menu and Quick Settings) |
 | `GlassOpacity` | 0.43 | Strength of the tint over the glass (lower = clearer) |
 | `GlassHighlights` | 0.45 | Strength of the glass's white shine, edge glow and rim (lower = less white) |
 | `BottomMargin` / `SideMargin` | 6 | Gap between the bubbles and the screen edges |

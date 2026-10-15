@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using GlassDock.Interop;
 
 namespace GlassDock;
 
@@ -43,9 +44,15 @@ internal sealed class PanelAnimation
     private EventHandler? _frame;
     private bool _cloaked;
 
+    // Frosted glass without refraction: the system's live blur under each piece of glass, from a window right
+    // under the panel (as under the bars). It appears with the panel and slides with its contents; it can't fade
+    // (Windows stops drawing the blur on a translucent visual), so the pieces' tint and contents fade in over it.
+    private readonly Backdrop? _blur;
+    private bool _blurShown;
+
     /// <param name="body">The panel's contents (everything above the glass), which slide and fade.</param>
     /// <param name="glass">The panel's glass, which stays put.</param>
-    public PanelAnimation(Window window, UIElement body, GlassSurface glass)
+    public PanelAnimation(Window window, FrameworkElement body, GlassSurface glass)
     {
         _window = window;
         _body = body;
@@ -53,6 +60,33 @@ internal sealed class PanelAnimation
         body.RenderTransform = _shift;
         window.SourceInitialized += (_, _) => CacheGlass();
         window.DpiChanged += (_, _) => CacheGlass();
+
+        if (!Settings.Current.Refraction && Settings.Current.GlassBlur >= 0.5)
+        {
+            _blur = new Backdrop();
+            new WindowInteropHelper(window).Owner = _blur.Handle; // keeps the panel above its blur
+            window.Closed += (_, _) => _blur.Dispose();
+            window.IsVisibleChanged += (_, _) => { if (!window.IsVisible) ShowBlur(false); };
+            window.LayoutUpdated += (_, _) => { if (_blurShown) PlaceBlur(); };
+        }
+    }
+
+    private void ShowBlur(bool show)
+    {
+        if (_blur == null || show == _blurShown) return;
+        _blurShown = show;
+        if (show) PlaceBlur();
+        _blur.SetVisible(show);
+    }
+
+    /// <summary>Puts the blur under the pieces of glass where they are now, and moves it with the contents' slide.</summary>
+    private void PlaceBlur()
+    {
+        if (_blur == null || _window.Content is not Visual root || PresentationSource.FromVisual(_window) == null) return;
+        if (!Native.GetWindowRect(new WindowInteropHelper(_window).Handle, out var rect)) return;
+        double s = VisualTreeHelper.GetDpi(_window).DpiScaleX;
+        _blur.UpdatePieces(rect, GlassTile.PiecesIn((FrameworkElement)_body, root, s));
+        _blur.SetOffsetY(_shift.Y * s);
     }
 
     /// <summary>True while an open or close animation runs.</summary>
@@ -74,6 +108,7 @@ internal sealed class PanelAnimation
             _shift.Y = Rise;
             _window.Show();
         }
+        else ShowBlur(true); // (brought back while closing: the blur is up already; otherwise it comes with the reveal)
         double startOpacity = _body.Opacity, startY = _shift.Y;
         Run(Settings.Current.LowPowerMode ? 0 : OpenMs, t =>
         {
@@ -90,6 +125,7 @@ internal sealed class PanelAnimation
         Stop();
         void Finish()
         {
+            ShowBlur(false);
             _window.Hide();
             _shift.Y = 0;
             _body.Opacity = 1;
@@ -129,7 +165,7 @@ internal sealed class PanelAnimation
         {
             if (waitFrames > 0)
             {
-                if (--waitFrames == 0) SetCloaked(false);
+                if (--waitFrames == 0) { SetCloaked(false); ShowBlur(true); }
                 return;
             }
             if (last < 0) { _clock.Restart(); last = 0; } // the animation starts once the panel is on screen
@@ -138,6 +174,7 @@ internal sealed class PanelAnimation
             last = now;
             double t = ms <= 0 ? 1 : Math.Min(1, elapsed / ms);
             step(t);
+            if (_blurShown) _blur!.SetOffsetY(_shift.Y * VisualTreeHelper.GetDpi(_window).DpiScaleY);
             if (t < 1) return;
             Stop();
             done?.Invoke();

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,15 +15,6 @@ public class GlassTile : Grid
 {
     public GlassTile()
     {
-        // Without refraction there's no picture of the screen for the glass to bend: each piece gets the panels'
-        // own background instead, so it reads as it did on the panel (whose window is see-through all the same).
-        if (!Settings.Current.Refraction)
-        {
-            var fill = new Border();
-            fill.SetResourceReference(Border.BackgroundProperty, "PanelFill");
-            fill.SetResourceReference(Border.CornerRadiusProperty, "Radius");
-            Children.Add(fill);
-        }
         Glass = new GlassSurface();
         Children.Add(Glass);
         Resources["Radius"] = new System.Windows.CornerRadius(20);
@@ -72,6 +64,26 @@ public class GlassTile : Grid
         window.Background = Brushes.Transparent; // still hit-testable: a click in a gap closes the panel
         backdrop.HidePicture();
         return true;
+    }
+
+    /// <summary>
+    /// Each visible piece of glass in <paramref name="body"/>: its rectangle in physical px inside the window whose
+    /// content is <paramref name="root"/>, and its corner radius in px. Leaves out the body's own render transform
+    /// (the panel's open/close slide), which whatever follows the pieces applies by itself.
+    /// </summary>
+    internal static (Rect Px, double RadiusPx)[] PiecesIn(FrameworkElement body, Visual root, double scale)
+    {
+        var origin = GlassSurface.LayoutOffset(body, root);
+        var pieces = new System.Collections.Generic.List<(Rect, double)>();
+        foreach (var tile in Descendants(body).OfType<GlassTile>())
+        {
+            if (!tile.IsVisible || tile.ActualWidth < 1 || tile.ActualHeight < 1) continue;
+            var r = tile.TransformToAncestor(body).TransformBounds(new Rect(0, 0, tile.ActualWidth, tile.ActualHeight));
+            r.Offset(origin);
+            double radius = Math.Min(tile.CornerRadius, Math.Min(r.Width, r.Height) / 2);
+            pieces.Add((new Rect(r.X * scale, r.Y * scale, r.Width * scale, r.Height * scale), radius * scale));
+        }
+        return pieces.ToArray();
     }
 
     /// <summary>Whether <paramref name="element"/> is (inside) a piece of glass, rather than a gap between them.</summary>

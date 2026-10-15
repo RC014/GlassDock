@@ -9,9 +9,9 @@ using Windows.UI.Composition.Desktop;
 namespace GlassDock;
 
 /// <summary>
-/// A click-through window that sits directly under a bar and shows the system's live blur of whatever is
-/// behind it, clipped to an anti-aliased rounded rectangle. (Window regions don't clip DWM blur on
-/// Windows 11, which produced square corners; a composition clip does.)
+/// A click-through window that sits directly under a bar (or a panel) and shows the system's live blur of
+/// whatever is behind it, clipped to an anti-aliased rounded rectangle (or one per piece of a panel's glass).
+/// (Window regions don't clip DWM blur on Windows 11, which produced square corners; a composition clip does.)
 /// </summary>
 internal sealed class Backdrop : IDisposable
 {
@@ -66,20 +66,67 @@ internal sealed class Backdrop : IDisposable
     /// <summary>Matches the bar window's rectangle (physical px) and places the blur at glassPx inside it.</summary>
     public void Update(Native.RECT windowRect, Rect glassPx, double radiusPx)
     {
-        if (!windowRect.Equals(_lastRect))
-        {
-            _lastRect = windowRect;
-            SetWindowPos(Handle, IntPtr.Zero, windowRect.Left, windowRect.Top,
-                windowRect.Right - windowRect.Left, windowRect.Bottom - windowRect.Top, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
-        }
-        // Inset slightly so the bar's anti-aliased rim fully covers the blur's edge.
-        const float inset = 1f;
-        var size = new Vector2((float)Math.Max(0, glassPx.Width - inset * 2), (float)Math.Max(0, glassPx.Height - inset * 2));
-        _glassOffset = new Vector3((float)glassPx.X + inset, (float)glassPx.Y + inset, 0);
+        MoveTo(windowRect);
+        _glassOffset = Place(_sprite, _geometry, glassPx, radiusPx);
         _sprite.Offset = _glassOffset + new Vector3(_shift, 0, 0);
-        _sprite.Size = size;
-        _geometry.Size = size;
-        _geometry.CornerRadius = new Vector2((float)Math.Max(0, radiusPx - inset));
+    }
+
+    // ---------------- a panel's pieces of glass ----------------
+
+    private readonly System.Collections.Generic.List<(SpriteVisual Sprite, CompositionRoundedRectangleGeometry Shape)> _pieces = new();
+    private (Rect Px, double RadiusPx)[] _lastPieces = Array.Empty<(Rect, double)>();
+
+    /// <summary>
+    /// For a panel made of separate pieces of glass (Start menu, Quick Settings): matches the panel window's rectangle
+    /// (physical px) and puts the blur under each piece - its rectangle in px inside the window, and its corner
+    /// radius. (The bar's single blur, <see cref="Update"/>, isn't used then.)
+    /// </summary>
+    public void UpdatePieces(Native.RECT windowRect, (Rect Px, double RadiusPx)[] pieces)
+    {
+        MoveTo(windowRect);
+        if (pieces.AsSpan().SequenceEqual(_lastPieces)) return;
+        _lastPieces = pieces;
+        var c = _compositor!;
+        while (_pieces.Count < pieces.Length)
+        {
+            var shape = c.CreateRoundedRectangleGeometry();
+            var sprite = c.CreateSpriteVisual();
+            sprite.Brush = _sprite.Brush;
+            sprite.Clip = c.CreateGeometricClip(shape);
+            _root.Children.InsertAtTop(sprite);
+            _pieces.Add((sprite, shape));
+        }
+        while (_pieces.Count > pieces.Length)
+        {
+            _root.Children.Remove(_pieces[^1].Sprite);
+            _pieces.RemoveAt(_pieces.Count - 1);
+        }
+        for (int i = 0; i < pieces.Length; i++) Place(_pieces[i].Sprite, _pieces[i].Shape, pieces[i].Px, pieces[i].RadiusPx);
+    }
+
+    /// <summary>Moves all of the blur vertically (physical px), e.g. with a panel's contents as they slide.</summary>
+    public void SetOffsetY(double px) => _root.Offset = new Vector3(0, (float)px, 0);
+
+    private void MoveTo(Native.RECT windowRect)
+    {
+        if (windowRect.Equals(_lastRect)) return;
+        _lastRect = windowRect;
+        SetWindowPos(Handle, IntPtr.Zero, windowRect.Left, windowRect.Top,
+            windowRect.Right - windowRect.Left, windowRect.Bottom - windowRect.Top, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+    }
+
+    /// <summary>Fits a blur shape to a piece of glass (px), inset slightly so the glass's anti-aliased rim fully
+    /// covers the blur's edge; returns its offset.</summary>
+    private static Vector3 Place(SpriteVisual sprite, CompositionRoundedRectangleGeometry shape, Rect px, double radiusPx)
+    {
+        const float inset = 1f;
+        var size = new Vector2((float)Math.Max(0, px.Width - inset * 2), (float)Math.Max(0, px.Height - inset * 2));
+        var offset = new Vector3((float)px.X + inset, (float)px.Y + inset, 0);
+        sprite.Offset = offset;
+        sprite.Size = size;
+        shape.Size = size;
+        shape.CornerRadius = new Vector2((float)Math.Max(0, radiusPx - inset));
+        return offset;
     }
 
     /// <summary>Slides the blur vertically (physical px) in step with the bar's own slide animation.</summary>
