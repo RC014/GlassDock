@@ -221,8 +221,10 @@ public partial class DockWindow : GlassWindow
         var wins = item.Windows;
         if (wins.Count == 0) { LaunchWithBounce(item); return; }
 
-        var active = wins.FirstOrDefault(w => w.State == ApplicationWindow.WindowState.Active);
-        if (active == null) { wins[0].BringToFront(); return; }
+        // (A minimised window can still be marked active - Windows doesn't always activate another window when one is
+        // minimised - and minimising it again would do nothing: a click must bring it back.)
+        var active = wins.FirstOrDefault(w => w.State == ApplicationWindow.WindowState.Active && !w.IsMinimized);
+        if (active == null) { (wins.FirstOrDefault(w => w.State == ApplicationWindow.WindowState.Active) ?? wins[0]).BringToFront(); return; }
 
         if (wins.Count == 1)
         {
