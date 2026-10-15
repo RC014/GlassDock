@@ -14,6 +14,15 @@ public class GlassTile : Grid
 {
     public GlassTile()
     {
+        // Without refraction there's no picture of the screen for the glass to bend: each piece gets the panels'
+        // own background instead, so it reads as it did on the panel (whose window is see-through all the same).
+        if (!Settings.Current.Refraction)
+        {
+            var fill = new Border();
+            fill.SetResourceReference(Border.BackgroundProperty, "PanelFill");
+            fill.SetResourceReference(Border.CornerRadiusProperty, "Radius");
+            Children.Add(fill);
+        }
         Glass = new GlassSurface();
         Children.Add(Glass);
         Resources["Radius"] = new System.Windows.CornerRadius(20);

@@ -25,6 +25,8 @@ public partial class QuickSettingsWindow : Window
     private readonly DispatcherTimer _brightnessDebounce = new() { Interval = TimeSpan.FromMilliseconds(120) };
     private bool _updating; // true while we set slider values ourselves
 
+    private bool _seeThrough; // the gaps between the pieces of glass show the screen (GlassTile.MakeSeeThrough)
+
     // click-outside-to-close (same approach as the hidden-icons flyout)
     private IntPtr _mouseHook;
     private Native.LowLevelMouseProc? _mouseProc;
@@ -39,24 +41,21 @@ public partial class QuickSettingsWindow : Window
         Glass.MakeBackdrop();
         GlassTile.ConnectAll(Glass, Body);
         // A click in a gap between the pieces of glass is a click on the desktop: close, like a click outside.
-        PreviewMouseDown += (_, e) => { if (Settings.Current.Refraction && !GlassTile.IsOnTile(e.OriginalSource as DependencyObject)) Hide(); };
+        PreviewMouseDown += (_, e) => { if ((_seeThrough || Settings.Current.Refraction) && !GlassTile.IsOnTile(e.OriginalSource as DependencyObject)) Hide(); };
 
         SourceInitialized += (_, _) =>
         {
             _hwnd = new WindowInteropHelper(this).Handle;
             int ex = Native.GetWindowLong(_hwnd, Native.GWL_EXSTYLE);
             Native.SetWindowLong(_hwnd, Native.GWL_EXSTYLE, (ex | Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE) & ~Native.WS_EX_APPWINDOW);
-            // With refraction the window itself is invisible (see-through, or a backdrop of the screen behind it):
-            // no rounding, border or shadow.
-            int round = Settings.Current.Refraction ? Native.DWMWCP_DONOTROUND : 2 /* DWMWCP_ROUND */;
+            if (Settings.Current.Refraction) Native.SetWindowDisplayAffinity(_hwnd, Native.WDA_EXCLUDEFROMCAPTURE);
+            _seeThrough = GlassTile.MakeSeeThrough(this, _hwnd, Glass);
+            // The window itself is invisible (see-through, or with refraction a backdrop of the screen behind it):
+            // no rounding, border or shadow. (Only without either is it a panel of its own.)
+            int round = _seeThrough || Settings.Current.Refraction ? Native.DWMWCP_DONOTROUND : 2 /* DWMWCP_ROUND */;
             Native.DwmSetWindowAttribute(_hwnd, Native.DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
             int none = Native.DWMWA_COLOR_NONE;
             Native.DwmSetWindowAttribute(_hwnd, Native.DWMWA_BORDER_COLOR, ref none, sizeof(int));
-            if (Settings.Current.Refraction)
-            {
-                Native.SetWindowDisplayAffinity(_hwnd, Native.WDA_EXCLUDEFROMCAPTURE);
-                GlassTile.MakeSeeThrough(this, _hwnd, Glass);
-            }
         };
 
         MediaController.Instance.Changed += UpdateMedia;
