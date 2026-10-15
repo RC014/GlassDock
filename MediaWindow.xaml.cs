@@ -32,6 +32,10 @@ public partial class MediaWindow : GlassWindow
         RootGrid.Margin = new Thickness(0, 0, _shiftRoom, Settings.Current.BottomMargin);
         double art = Settings.Current.IconSize;
         ArtFrame.Width = ArtFrame.Height = art;
+        // rounded corners concentric with the bubble's: its corner radius less the glass around the cover
+        double artRadius = Math.Max(4, Settings.Current.CornerRadius - (BarHeight - art) / 2);
+        ArtFrame.CornerRadius = new CornerRadius(artRadius);
+        RoundedClip.SetRadius(ArtFrame, artRadius);
         MediaController.Instance.Changed += Media_Changed;
         MediaController.Instance.Start();
         Media_Changed();

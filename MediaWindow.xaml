@@ -20,7 +20,7 @@
 
             <!-- Album art + title: click brings the player app to the front -->
             <DockPanel x:Name="InfoPanel" Background="Transparent" Cursor="Hand" MouseLeftButtonUp="Info_Click">
-                <Border x:Name="ArtFrame" DockPanel.Dock="Left" CornerRadius="9" ClipToBounds="True" Background="{DynamicResource HoverFill}">
+                <Border x:Name="ArtFrame" DockPanel.Dock="Left" Background="{DynamicResource HoverFill}">
                     <Grid>
                         <TextBlock Text="&#xE8D6;" FontFamily="{StaticResource IconFont}" FontSize="18" Foreground="{DynamicResource FgDim}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
