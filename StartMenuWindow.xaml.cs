@@ -24,6 +24,7 @@ public partial class StartMenuWindow : Window
     private List<StartApp> _apps = new();
     private DateTime _hiddenAt;
     private bool _menuOpen; // a context menu of ours is open: don't close on deactivation
+    private bool _opening; // between showing the window and taking the foreground (see Open)
 
     public StartMenuWindow()
     {
@@ -46,7 +47,7 @@ public partial class StartMenuWindow : Window
             Native.DwmSetWindowAttribute(_hwnd, Native.DWMWA_BORDER_COLOR, ref none, sizeof(int));
         };
 
-        Deactivated += (_, _) => { if (!_menuOpen) Dismiss(); };
+        Deactivated += (_, _) => { if (!_menuOpen && !_opening) Dismiss(); };
         PreviewKeyDown += Window_PreviewKeyDown;
         _ = LoadUserAsync();
         Glass.MakeBackdrop();
@@ -104,9 +105,16 @@ public partial class StartMenuWindow : Window
         Left = Math.Round(area.Left + (area.Width - Width) / 2);
         double top = Math.Round(area.Bottom - Height - 74); // above the dock
 
-        _anim.Show(top);
-        ForceForeground(_hwnd);
-        Activate();
+        // Showing the window can deactivate it straight away when the app in front is busy (e.g. Outlook while it
+        // loads): until it has taken the foreground below, that isn't the user leaving the menu.
+        _opening = true;
+        try
+        {
+            _anim.Show(top);
+            ForceForeground(_hwnd);
+            Activate();
+        }
+        finally { _opening = false; }
         SearchBox.Focus();
         Keyboard.Focus(SearchBox);
         ScreenSampler.SampleNow(Glass);
