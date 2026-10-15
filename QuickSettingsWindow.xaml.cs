@@ -59,6 +59,7 @@ public partial class QuickSettingsWindow : Window
         };
 
         MediaController.Instance.Changed += UpdateMedia;
+        Closed += (_, _) => { MediaController.Instance.Changed -= UpdateMedia; StopWatching(); _brightnessDebounce.Stop(); };
         _poll.Tick += (_, _) => { if (_anim.IsAnimating) return; UpdateVolume(); UpdateBattery(); UpdateToggles(); };
         _brightnessDebounce.Tick += (_, _) => { _brightnessDebounce.Stop(); SystemControls.SetBrightness((int)BrightnessSlider.Value); };
         BrightnessSlider.ValueChanged += (_, _) => { if (!_updating) { _brightnessDebounce.Stop(); _brightnessDebounce.Start(); } };

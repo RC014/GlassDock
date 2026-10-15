@@ -58,6 +58,17 @@ public partial class StartMenuWindow : Window
 
     private bool _seeThrough; // the gaps between the pieces of glass show the screen (GlassTile.MakeSeeThrough)
 
+    /// <summary>For dock.log: whether the menu is up, and how it's being drawn.</summary>
+    internal string DescribeForLog()
+    {
+        DwmGetWindowAttribute(_hwnd, 14 /* DWMWA_CLOAKED */, out int cloaked, sizeof(int));
+        string drawing = HwndSource.FromHwnd(_hwnd)?.CompositionTarget?.RenderMode.ToString() ?? "?";
+        return $"Start menu visible {IsVisible}, closing {_anim.IsClosing}, contents opacity {Body.Opacity:F2}, see-through {_seeThrough}, " +
+               $"cloaked {cloaked}, in front {Native.GetForegroundWindow() == _hwnd}, drawing {drawing}, graphics tier {RenderCapability.Tier >> 16}";
+    }
+
+    [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr hwnd, int attr, out int value, int size);
+
     private readonly PanelAnimation _anim;
 
     internal void Dismiss() { if (IsVisible && !_anim.IsClosing) { _anim.Hide(); _hiddenAt = DateTime.Now; } }

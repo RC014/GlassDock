@@ -35,6 +35,20 @@ internal static class ClickLog
         later.Start();
     }
 
+    /// <summary>Notes a line of its own (e.g. the Start menu's state), and optionally another a moment later.</summary>
+    public static void Line(string text, Func<string>? later = null)
+    {
+        Append($"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {text}");
+        if (later == null) return;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            Append($"{DateTime.Now:yyyy-MM-dd HH:mm:ss}    then: {later()}");
+        };
+        timer.Start();
+    }
+
     private static string Describe(ApplicationWindow w)
     {
         try

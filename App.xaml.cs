@@ -145,6 +145,8 @@ public partial class App : Application
         if (Settings.Current.WindowsKeyOpensGlassStart || Settings.Current.GlassVolumeIndicator) KeyboardHook.Start();
         if (Settings.Current.GlassVolumeIndicator) WindowsOsd.Start();
         Updater.StartAutomaticChecks();
+        SystemEvents.PowerModeChanged += (_, a) => { if (a.Mode == PowerModes.Resume) Current.Dispatcher.BeginInvoke(RebuildPanelsAfterWake); };
+        SystemEvents.SessionSwitch += (_, a) => { if (a.Reason == SessionSwitchReason.SessionUnlock) Current.Dispatcher.BeginInvoke(RebuildPanelsAfterWake); };
         // Build the Start menu and Quick Settings once in the background, so their first open is as smooth as the rest.
         {
             var warm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
@@ -166,8 +168,42 @@ public partial class App : Application
         try
         {
             _startMenu ??= new StartMenuWindow();
-            _startMenu.Toggle();
-            if (_startMenu.IsVisible) _ = RevealDockUnderStartAsync(_startMenu);
+            var menu = _startMenu;
+            menu.Toggle();
+            if (menu.IsVisible) _ = RevealDockUnderStartAsync(menu);
+            ClickLog.Line(menu.IsVisible ? "Start menu: open" : "Start menu: close", () => menu.DescribeForLog());
+        }
+        catch (Exception ex) { Log(ex); }
+    }
+
+    private static DateTime _panelsRebuiltAt;
+
+    /// <summary>
+    /// After the PC slept, the Start menu could open without appearing (its window opened and took the focus, but
+    /// nothing was drawn) until GlassDock was restarted. Something in the panels' window state didn't survive the
+    /// sleep, so on waking (or unlocking) both panels are thrown away and built again from scratch, as a restart
+    /// would, and drawn once in the background a few seconds later.
+    /// </summary>
+    private static void RebuildPanelsAfterWake()
+    {
+        if ((DateTime.Now - _panelsRebuiltAt).TotalSeconds < 15) return; // waking and unlocking come together
+        _panelsRebuiltAt = DateTime.Now;
+        try
+        {
+            if (_startMenu is { } start)
+            {
+                _startMenu = null;
+                start.Close();
+            }
+            Status?.DiscardQuickSettings();
+            var warm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            warm.Tick += (_, _) =>
+            {
+                warm.Stop();
+                if (Settings.Current.GlassStartMenu && _startMenu == null) (_startMenu = new StartMenuWindow()).Prewarm();
+                Status?.PrewarmQuickSettings();
+            };
+            warm.Start();
         }
         catch (Exception ex) { Log(ex); }
     }

@@ -264,6 +264,14 @@ public partial class StatusWindow : GlassWindow
     /// <summary>Creates and draws Quick Settings once in the background, so its first open is smooth.</summary>
     internal void PrewarmQuickSettings() => EnsureQuickSettings().Prewarm();
 
+    /// <summary>Throws the Quick Settings panel away; a new one is built on next use (see App.RebuildPanelsAfterWake).</summary>
+    internal void DiscardQuickSettings()
+    {
+        if (_quickSettings is not { } old) return;
+        _quickSettings = null;
+        old.Close();
+    }
+
     private void System_Click(object sender, MouseButtonEventArgs e)
     {
         EnsureQuickSettings();
