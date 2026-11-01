@@ -45,7 +45,7 @@ The version comes from `<Version>` in `GlassDock.csproj`. The installer project 
 
 ## Showing and hiding the bars
 
-The bars stay hidden and float over your windows; they never take screen space away from apps.
+The bars stay hidden and float over your windows; they never take screen space away from apps. Apps are told the taskbar auto-hides at the bottom, as with Windows' own auto-hiding taskbar, so maximised apps that draw their own title bar (browsers, Telegram) leave a 1-pixel gap there.
 
 - Push the cursor against the **bottom edge under the dock** to bring up the dock (and the media player with it).
 - Push it against the **bottom edge on the right half of the screen** to bring up the status bar.

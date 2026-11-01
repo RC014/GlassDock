@@ -84,6 +84,8 @@ public partial class App : Application
         Status = new StatusWindow();
         Dock.Show();
         Status.Show();
+        // Apps asking the taskbar whether it auto-hides are told it does, at the bottom (see TaskbarAnswers).
+        if (Settings.Current.HideWindowsTaskbar) TaskbarAnswers.Install(Shell.NotificationArea);
 
         // The media bubble shows itself (next to the dock) once something is playing.
         if (Settings.Current.ShowMediaPlayer) Media = new MediaWindow();
