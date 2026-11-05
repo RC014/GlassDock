@@ -149,6 +149,7 @@ public partial class App : Application
         Updater.StartAutomaticChecks();
         // After a sleep or hibernation WPF can fail to put frames on screen for a while: keep redrawing until it works.
         RenderWatch.Start();
+        MemoryLog.Start();
         // Build the Start menu and Quick Settings once in the background, so their first open is as smooth as the rest.
         {
             var warm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };

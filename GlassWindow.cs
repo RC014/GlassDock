@@ -58,7 +58,7 @@ public abstract class GlassWindow : Window
         SizeChanged += (_, _) => Relayout();
         DpiChanged += (_, _) => Relayout();
         LocationChanged += (_, _) => SyncBackdrop();
-        IsVisibleChanged += (_, _) => _backdrop.SetVisible(IsVisible);
+        IsVisibleChanged += (_, _) => { _backdrop.SetVisible(IsVisible); HoldSize(!IsVisible); };
         Closed += (_, _) => _backdrop.Dispose();
 
         // "Show desktop" / Win+M must never minimise the bars.
@@ -81,6 +81,27 @@ public abstract class GlassWindow : Window
             root.RenderTransform = _slide;
             root.Margin = new Thickness(0, 0, 0, Settings.Current.BottomMargin);
         }
+    }
+
+    // A hidden bar's window keeps its size. Each change of size of a window that isn't being drawn costs WPF a new
+    // drawing surface (about 1 MB for the dock), and it frees the old ones only when the window is next drawn: with
+    // an app opening and closing windows and the dock not opened meanwhile, that added up to gigabytes.
+    private bool _sizeHeld;
+
+    private void HoldSize(bool hold)
+    {
+        if (hold == _sizeHeld) return;
+        _sizeHeld = hold;
+        SizeToContent = hold ? SizeToContent.Manual : SizeToContent.WidthAndHeight;
+        if (!hold) UpdateLayout();
+    }
+
+    /// <summary>Brings a hidden bar's size and position up to date (it stays hidden), e.g. to know where it would open.</summary>
+    internal void RefreshHeldSize()
+    {
+        if (!_sizeHeld) return;
+        HoldSize(false);
+        HoldSize(true);
     }
 
     /// <summary>The window's rectangle in physical px.</summary>
@@ -119,6 +140,7 @@ public abstract class GlassWindow : Window
     {
         if (shown && !CanShow) return;
         IsSlidIn = shown;
+        if (shown) HoldSize(false);
         if (shown && !IsVisible) Show();
         // hidden bars don't sample the screen: take a fresh picture now, before it's cached for the slide
         if (shown && !IsSliding) ScreenSampler.SampleNow(this);

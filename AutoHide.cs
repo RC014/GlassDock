@@ -31,6 +31,7 @@ internal sealed class AutoHide
     private bool _shown = true;
     private TimeSpan _lastInside;
     private TimeSpan? _edgeSince;
+    private bool _wasAtBottom;
     private IntPtr _lastForeground;
     private static readonly uint OurProcessId = (uint)Environment.ProcessId;
 
@@ -61,7 +62,12 @@ internal sealed class AutoHide
     {
         var now = _clock.Elapsed;
         Native.GetCursorPos(out var p);
-        bool atEdge = p.Y >= Native.GetSystemMetrics(Native.SM_CYSCREEN) - 2 && _inZone(p);
+        bool atBottom = p.Y >= Native.GetSystemMetrics(Native.SM_CYSCREEN) - 2;
+        // The zones are measured against where the bars are: bring hidden ones up to date as the cursor arrives.
+        if (atBottom && !_wasAtBottom)
+            foreach (var bar in _bars) bar.RefreshHeldSize();
+        _wasAtBottom = atBottom;
+        bool atEdge = atBottom && _inZone(p);
 
         if (_shown)
         {
