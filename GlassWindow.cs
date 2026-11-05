@@ -17,6 +17,12 @@ public abstract class GlassWindow : Window
 
     public static double BarHeight => Math.Round(Settings.Current.IconSize + 22);
 
+    // The bars are ordinary windows that DWM composes with their see-through pixels, like the panels (GlassTile). A
+    // layered window (AllowsTransparency) has its every frame read back from the graphics card, which waits for all
+    // the card's other work: over an app keeping the card busy, the dock's wave fell to a few frames a second.
+    // WPF's software rendering can't draw see-through pixels into a normal window, so without a card they stay layered.
+    private static readonly bool Layered = RenderCapability.Tier >> 16 == 0;
+
     private readonly Backdrop _backdrop = new();
     private readonly TranslateTransform _slide = new();
 
@@ -26,7 +32,7 @@ public abstract class GlassWindow : Window
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
-        AllowsTransparency = true;
+        AllowsTransparency = Layered;
         ShowInTaskbar = false;
         ShowActivated = false;
         Topmost = true;
@@ -49,6 +55,16 @@ public abstract class GlassWindow : Window
             {
                 Native.SetWindowDisplayAffinity(Handle, Native.WDA_EXCLUDEFROMCAPTURE);
                 Native.SetWindowDisplayAffinity(_backdrop.Handle, Native.WDA_EXCLUDEFROMCAPTURE);
+            }
+            if (!Layered)
+            {
+                var all = new Native.MARGINS { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+                Native.DwmExtendFrameIntoClientArea(Handle, ref all);
+                if (HwndSource.FromHwnd(Handle) is { CompositionTarget: { } target }) target.BackgroundColor = Colors.Transparent;
+                int v = Native.DWMWCP_DONOTROUND;
+                Native.DwmSetWindowAttribute(Handle, Native.DWMWA_WINDOW_CORNER_PREFERENCE, ref v, sizeof(int));
+                v = Native.DWMWA_COLOR_NONE;
+                Native.DwmSetWindowAttribute(Handle, Native.DWMWA_BORDER_COLOR, ref v, sizeof(int));
             }
             HwndSource.FromHwnd(Handle)?.AddHook(WndProc);
             Relayout();
@@ -118,19 +134,54 @@ public abstract class GlassWindow : Window
     /// <summary>Shifts the bar sideways inside its window (no window move), e.g. to follow the dock's stretch.</summary>
     internal void ShiftX(double dip)
     {
-        if (Math.Abs(dip - ShiftDip) < 0.05) return;
+        if (Math.Abs(dip - ShiftDip) < 0.05 && dip != 0) return;
         ShiftDip = dip;
         _slide.X = dip;
         _backdrop.SetShift(dip * VisualTreeHelper.GetDpi(this).DpiScaleX);
+        ClickWholeWindow(dip != 0);
     }
 
-    // ---------------- slide in / out ----------------
-    // The content slides with a WPF animation (render thread, smooth timing) and the blur window's visual slides
-    // with the same timing in the compositor. While sliding, the content is rendered once into a bitmap cache at
-    // device resolution, so the glass effects (refraction, blur passes, glow) aren't recomputed every frame;
-    // nothing inside the bar changes mid-slide (see ScreenSampler, the dock's magnifier) to keep that cache valid.
+    // A layered window lets clicks through wherever it's transparent; this one would take them all, so its region
+    // keeps it to the glass. (Not to the glass's exact shape: a region has no soft edges, it would cut off the glass's
+    // anti-aliased rim.) While the glass changes shape under the cursor or slides, the whole window takes part.
+    private bool _clickWhole;
+    private Native.RECT _lastRegion;
 
-    private int _slideVersion;
+    /// <summary>Whether the window's whole area takes clicks, or only the glass where it rests.</summary>
+    protected void ClickWholeWindow(bool whole)
+    {
+        if (whole == _clickWhole) return;
+        _clickWhole = whole;
+        UpdateClickRegion();
+    }
+
+    private void UpdateClickRegion()
+    {
+        if (Layered || Handle == IntPtr.Zero || !Native.GetWindowRect(Handle, out var w)) return;
+        double s = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        var g = GlassRect;
+        var region = _clickWhole || IsSliding
+            ? new Native.RECT { Right = w.Right - w.Left, Bottom = w.Bottom - w.Top }
+            : new Native.RECT { Left = (int)Math.Floor(g.Left * s), Top = (int)Math.Floor(g.Top * s), Right = (int)Math.Ceiling(g.Right * s), Bottom = (int)Math.Ceiling(g.Bottom * s) };
+        if (region.Equals(_lastRegion)) return;
+        _lastRegion = region;
+        Native.SetWindowRgn(Handle, CreateRectRgn(region.Left, region.Top, region.Right, region.Bottom), false);
+    }
+
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+    // ---------------- slide in / out ----------------
+    // The content and the blur window's visual slide frame by frame. While sliding, the content is rendered once into
+    // a bitmap cache at device resolution, so the glass effects (refraction, blur passes, glow) aren't recomputed every
+    // frame; nothing inside the bar changes mid-slide (see ScreenSampler, the dock's magnifier) to keep that cache valid.
+    // Drawing that cache is the slide's first frame, and takes up to 200 ms over an app keeping the graphics card busy.
+    // On a clock that keeps running, the bar stood still and then jumped, losing most of the slide; this clock pauses.
+
+    /// <summary>Longest step the slide takes in one frame: a slow frame pauses it instead of making it jump ahead.</summary>
+    private const double MaxSlideStepMs = 1000 / 45.0;
+    private readonly System.Diagnostics.Stopwatch _slideClock = new();
+    private EventHandler? _slideFrame;
+    private bool _cloaked;
 
     /// <summary>True while a slide animation is running.</summary>
     internal bool IsSliding { get; private set; }
@@ -139,46 +190,76 @@ public abstract class GlassWindow : Window
     internal void Slide(bool shown, double seconds, Action? completed = null)
     {
         if (shown && !CanShow) return;
+        StopSlide();
         IsSlidIn = shown;
         if (shown) HoldSize(false);
-        if (shown && !IsVisible) Show();
+        // A window that isn't layered shows black until its first frame is drawn: it stays cloaked until then.
+        int waitFrames = 0;
+        if (shown && !IsVisible)
+        {
+            if (!Layered)
+            {
+                SetCloaked(true);
+                waitFrames = RevealAfterFrames;
+            }
+            Show();
+        }
         // hidden bars don't sample the screen: take a fresh picture now, before it's cached for the slide
         if (shown && !IsSliding) ScreenSampler.SampleNow(this);
 
-        int version = ++_slideVersion;
         IsSliding = true;
+        UpdateClickRegion();
         if (Content is FrameworkElement root && root.CacheMode == null)
             root.CacheMode = new BitmapCache(VisualTreeHelper.GetDpi(this).DpiScaleX) { SnapsToDevicePixels = true };
 
-        double to = shown ? 0 : SlideDistance;
+        double from = _slide.Y, to = shown ? 0 : SlideDistance;
         // a partial slide (reversed midway) takes proportionally less time
-        double secs = Math.Max(0.01, seconds * Math.Abs(to - _slide.Y) / SlideDistance);
-        var anim = new System.Windows.Media.Animation.DoubleAnimation(to, TimeSpan.FromSeconds(secs))
+        double ms = Math.Max(1, seconds * 1000 * Math.Abs(to - from) / SlideDistance);
+        double scale = VisualTreeHelper.GetDpi(this).DpiScaleY;
+        double elapsed = 0, last = -1;
+        _slideFrame = (_, _) =>
         {
-            EasingFunction = shown
-                ? new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
-                : new System.Windows.Media.Animation.QuadraticEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn },
-        };
-        _slide.BeginAnimation(TranslateTransform.YProperty, anim, System.Windows.Media.Animation.HandoffBehavior.SnapshotAndReplace);
-        _backdrop.SlideTo(to * VisualTreeHelper.GetDpi(this).DpiScaleY, secs, easeOut: shown);
-
-        // Finish on a timer rather than the animation's Completed event, which didn't always arrive (the media
-        // bubble then stayed frozen on its slide bitmap and never hid). Back to live rendering, then e.g. hide.
-        var finish = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Normal)
-        {
-            Interval = TimeSpan.FromSeconds(secs + 0.03),
-        };
-        finish.Tick += (_, _) =>
-        {
-            finish.Stop();
-            if (version != _slideVersion) return; // superseded by a newer slide
+            if (waitFrames > 0)
+            {
+                if (--waitFrames == 0) SetCloaked(false);
+                return;
+            }
+            if (last < 0) { _slideClock.Restart(); last = 0; }
+            double now = _slideClock.Elapsed.TotalMilliseconds;
+            elapsed += Math.Min(now - last, MaxSlideStepMs);
+            last = now;
+            double t = Math.Min(1, elapsed / ms);
+            double eased = shown ? 1 - Math.Pow(1 - t, 3) : t * t;
+            _slide.Y = from + (to - from) * eased;
+            _backdrop.SetOffsetY(_slide.Y * scale);
+            if (t < 1) return;
+            StopSlide();
             IsSliding = false;
+            UpdateClickRegion();
+            // back to live rendering, then e.g. hide
             if (Content is FrameworkElement r) r.CacheMode = null;
             completed?.Invoke();
         };
-        finish.Start();
+        CompositionTarget.Rendering += _slideFrame;
     }
 
+    private void StopSlide()
+    {
+        if (_slideFrame == null) return;
+        CompositionTarget.Rendering -= _slideFrame;
+        _slideFrame = null;
+        if (_cloaked) SetCloaked(false);
+    }
+
+    private const int RevealAfterFrames = 2;
+    private const int DWMWA_CLOAK = 13;
+
+    private void SetCloaked(bool on)
+    {
+        _cloaked = on;
+        int v = on ? 1 : 0;
+        Native.DwmSetWindowAttribute(new WindowInteropHelper(this).EnsureHandle(), DWMWA_CLOAK, ref v, sizeof(int));
+    }
 
     /// <summary>The glass shape, in DIPs relative to the window.</summary>
     protected abstract Rect GlassRect { get; }
@@ -201,6 +282,7 @@ public abstract class GlassWindow : Window
         double s = VisualTreeHelper.GetDpi(this).DpiScaleX;
         var g = GlassRect;
         _backdrop.Update(r, new Rect(g.X * s, g.Y * s, g.Width * s, g.Height * s), Settings.Current.CornerRadius * s);
+        UpdateClickRegion();
     }
 
     // Context menus opened from this bar. Checked by asking the menus themselves (not by counting open/close

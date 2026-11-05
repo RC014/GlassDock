@@ -617,6 +617,7 @@ public partial class DockWindow : GlassWindow
     {
         if (_magnifying) return;
         _magnifying = true;
+        ClickWholeWindow(true);
         CompositionTarget.Rendering += OnFrame;
     }
 
@@ -712,6 +713,8 @@ public partial class DockWindow : GlassWindow
         {
             CompositionTarget.Rendering -= OnFrame;
             _magnifying = false;
+            ClickWholeWindow(false);
+            App.Media?.ShiftX(0);
         }
     }
 

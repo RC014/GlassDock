@@ -129,20 +129,6 @@ internal sealed class Backdrop : IDisposable
         return offset;
     }
 
-    /// <summary>Slides the blur vertically (physical px) in step with the bar's own slide animation.</summary>
-    public void SlideTo(double yPx, double seconds, bool easeOut)
-    {
-        var c = _compositor!;
-        // cubic-bezier equivalents of WPF's CubicEase(EaseOut) and QuadraticEase(EaseIn)
-        var ease = easeOut
-            ? c.CreateCubicBezierEasingFunction(new Vector2(0.215f, 0.61f), new Vector2(0.355f, 1f))
-            : c.CreateCubicBezierEasingFunction(new Vector2(0.55f, 0.085f), new Vector2(0.68f, 0.53f));
-        var anim = c.CreateScalarKeyFrameAnimation();
-        anim.InsertKeyFrame(1f, (float)yPx, ease);
-        anim.Duration = TimeSpan.FromSeconds(seconds);
-        _root.StartAnimation("Offset.Y", anim);
-    }
-
     /// <summary>Shifts the blur sideways (physical px) along with the bar's content.</summary>
     public void SetShift(double px)
     {
