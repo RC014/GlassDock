@@ -27,7 +27,10 @@ internal sealed class GpuCapture
     /// <summary>The running capture, or null (then use BitBlt).</summary>
     public static GpuCapture? Current { get; private set; }
 
-    private readonly object _lock = new();
+    // _lock guards what the UI thread reads (and is only held for moments); _gpuLock guards the graphics work and is
+    // held while waiting for the graphics card, which can take a long time when another app keeps it busy. Always
+    // in that order: _gpuLock first.
+    private readonly object _lock = new(), _gpuLock = new();
     private readonly IntPtr _device, _context;
     private readonly IDirect3DDevice _winrtDevice;
     private readonly GraphicsCaptureItem _item;
@@ -35,16 +38,20 @@ internal sealed class GpuCapture
     private readonly GraphicsCaptureSession _session;
     private Windows.Graphics.SizeInt32 _size;
 
-    // _latest: the last frame (on the graphics card), kept so a newly needed area can be copied out any time;
+    // _held: the last frame, kept (the pool has a buffer to spare) so a newly needed area can be copied out any time;
     // _staging: where areas are copied for the CPU to read; _snapshot: those areas, CPU side (screen-sized, same layout).
-    private IntPtr _latest, _staging;
+    private Direct3D11CaptureFrame? _held;
+    private IntPtr _heldTexture, _staging;
     private int _w, _h;
+    private readonly Timer _copyLater;
+    private bool _copyPending;
+    private long _lastCopy;
     private byte[] _snapshot = Array.Empty<byte>();
     private Native.RECT[] _wanted = Array.Empty<Native.RECT>();
     private Native.RECT[] _covered = Array.Empty<Native.RECT>();
     private int _version;
 
-    /// <summary>Goes up by one with every new frame of the screen.</summary>
+    /// <summary>Goes up by one whenever there's something new to take from <see cref="CopyTo"/>.</summary>
     public int Version => Volatile.Read(ref _version);
 
     /// <summary>Starts capturing in the background; <see cref="Current"/> is set once it runs.</summary>
@@ -87,6 +94,7 @@ internal sealed class GpuCapture
         _session = _pool.CreateCaptureSession(_item);
         _session.IsCursorCaptureEnabled = false;
         _session.IsBorderRequired = false;
+        _copyLater = new Timer(_ => CopyPending());
         _pool.FrameArrived += (pool, _) => OnFrame(pool);
         _session.StartCapture();
     }
@@ -107,18 +115,23 @@ internal sealed class GpuCapture
     /// </summary>
     public int CopyTo(byte[] target, int x, int y, int w, int h)
     {
+        var area = new Native.RECT { Left = x, Top = y, Right = x + w, Bottom = y + h };
+        bool covered;
         lock (_lock)
         {
-            if (_latest == IntPtr.Zero) return -1;
-            var area = new Native.RECT { Left = x, Top = y, Right = x + w, Bottom = y + h };
+            if (_w == 0) return -1;
+            covered = Covers(_covered, Clamp(area));
             // An area that isn't in the copy yet (glass that just appeared): take it from the last frame now.
-            if (!Covers(_covered, Clamp(area)))
-            {
-                var wanted = new List<Native.RECT>(_wanted) { area };
-                _wanted = wanted.ToArray();
-                try { if (!Refresh()) return -1; }
-                catch (Exception ex) { App.Log(ex); Stop(); return -1; }
-            }
+            if (!covered) _wanted = new List<Native.RECT>(_wanted) { area }.ToArray();
+        }
+        if (!covered)
+        {
+            try { lock (_gpuLock) if (!Refresh()) return -1; }
+            catch (Exception ex) { App.Log(ex); Stop(); return -1; }
+        }
+        lock (_lock)
+        {
+            if (_w == 0) return -1;
             int x0 = Math.Clamp(x, 0, _w), x1 = Math.Clamp(x + w, 0, _w);
             int y0 = Math.Clamp(y, 0, _h), y1 = Math.Clamp(y + h, 0, _h);
             if (x1 > x0)
@@ -134,26 +147,35 @@ internal sealed class GpuCapture
     {
         try
         {
-            using var frame = pool.TryGetNextFrame();
+            var frame = pool.TryGetNextFrame();
             if (frame == null) return;
-            lock (_lock)
+            lock (_gpuLock)
             {
                 if (frame.ContentSize.Width != _size.Width || frame.ContentSize.Height != _size.Height)
                 {
                     // the screen's resolution changed: new buffers from the next frame on
                     _size = frame.ContentSize;
-                    _pool.Recreate(_winrtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, _size);
+                    frame.Dispose();
                     FreeTextures();
+                    _pool.Recreate(_winrtDevice, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, _size);
                     return;
                 }
-                IntPtr texture = TextureOf(frame.Surface);
-                try
+                ReleaseHeld();
+                _held = frame;
+                _heldTexture = TextureOf(frame.Surface);
+                if (_staging == IntPtr.Zero) CreateTextures(_heldTexture);
+
+                // Most frames aren't needed: the glass takes a new picture only so many times a second, however
+                // often the screen changes, and none at all while it's hidden. The last change is copied a moment
+                // later, so the glass still ends up with what's on screen.
+                double every = 1000 / Settings.Current.EffectiveRefractionFps;
+                double since = (System.Diagnostics.Stopwatch.GetTimestamp() - _lastCopy) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                if (since >= every - 4) CopyWanted();
+                else if (!_copyPending)
                 {
-                    if (_latest == IntPtr.Zero) CreateTextures(texture);
-                    ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, IntPtr, void>)Slot(_context, 47))(_context, _latest, texture); // CopyResource
+                    _copyPending = true;
+                    _copyLater.Change((int)Math.Ceiling(every - since), Timeout.Infinite);
                 }
-                finally { Marshal.Release(texture); }
-                if (Refresh()) Interlocked.Increment(ref _version);
             }
         }
         catch (Exception ex)
@@ -164,40 +186,73 @@ internal sealed class GpuCapture
         }
     }
 
-    /// <summary>Copies the wanted areas of the last frame into the CPU-side snapshot. Call with the lock held.</summary>
+    private void CopyPending()
+    {
+        try
+        {
+            lock (_gpuLock)
+            {
+                _copyPending = false;
+                CopyWanted();
+            }
+        }
+        catch (Exception ex) { App.Log(ex); Stop(); }
+    }
+
+    /// <summary>Takes a new picture of the wanted areas, if any. Call with _gpuLock held.</summary>
+    private void CopyWanted()
+    {
+        lock (_lock)
+        {
+            if (_wanted.Length == 0)
+            {
+                // Nothing needs it now. What was copied earlier is out of date: glass that appears takes it afresh.
+                _covered = Array.Empty<Native.RECT>();
+                _version++;
+                return;
+            }
+        }
+        _lastCopy = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (Refresh()) lock (_lock) _version++;
+    }
+
+    /// <summary>Copies the wanted areas of the last frame into the CPU-side snapshot. Call with _gpuLock held.</summary>
     private unsafe bool Refresh()
     {
-        if (_latest == IntPtr.Zero) return false;
-        var areas = new List<Native.RECT>(_wanted.Length);
-        foreach (var a in _wanted)
-        {
-            var c = Clamp(a);
-            if (c.Right > c.Left && c.Bottom > c.Top) areas.Add(c);
-        }
+        if (_heldTexture == IntPtr.Zero || _staging == IntPtr.Zero) return false;
+        var areas = new List<Native.RECT>();
+        lock (_lock)
+            foreach (var a in _wanted)
+            {
+                var c = Clamp(a);
+                if (c.Right > c.Left && c.Bottom > c.Top) areas.Add(c);
+            }
         if (areas.Count > 0)
         {
             var copyRegion = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr, uint, uint, uint, uint, IntPtr, uint, Box*, void>)Slot(_context, 46);
             foreach (var a in areas)
             {
                 var box = new Box { Left = (uint)a.Left, Top = (uint)a.Top, Front = 0, Right = (uint)a.Right, Bottom = (uint)a.Bottom, Back = 1 };
-                copyRegion(_context, _staging, 0, (uint)a.Left, (uint)a.Top, 0, _latest, 0, &box);
+                copyRegion(_context, _staging, 0, (uint)a.Left, (uint)a.Top, 0, _heldTexture, 0, &box);
             }
+            // (this waits for the graphics card; the UI thread only ever waits for the copying below)
             Mapped mapped;
             var map = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr, uint, int, uint, Mapped*, int>)Slot(_context, 14);
             Check(map(_context, _staging, 0, D3D11_MAP_READ, 0, &mapped));
             try
             {
-                fixed (byte* snap = _snapshot)
-                    foreach (var a in areas)
-                    {
-                        int bytes = (a.Right - a.Left) * 4;
-                        for (int row = a.Top; row < a.Bottom; row++)
-                            Buffer.MemoryCopy((byte*)mapped.Data + (long)row * mapped.RowPitch + a.Left * 4, snap + ((long)row * _w + a.Left) * 4, bytes, bytes);
-                    }
+                lock (_lock)
+                    fixed (byte* snap = _snapshot)
+                        foreach (var a in areas)
+                        {
+                            int bytes = (a.Right - a.Left) * 4;
+                            for (int row = a.Top; row < a.Bottom; row++)
+                                Buffer.MemoryCopy((byte*)mapped.Data + (long)row * mapped.RowPitch + a.Left * 4, snap + ((long)row * _w + a.Left) * 4, bytes, bytes);
+                        }
             }
             finally { ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, uint, void>)Slot(_context, 15))(_context, _staging, 0); } // Unmap
         }
-        _covered = areas.ToArray();
+        lock (_lock) _covered = areas.ToArray();
         return true;
     }
 
@@ -206,38 +261,52 @@ internal sealed class GpuCapture
         TextureDesc desc;
         ((delegate* unmanaged[Stdcall]<IntPtr, TextureDesc*, void>)Slot(frameTexture, 10))(frameTexture, &desc); // GetDesc
         var create = (delegate* unmanaged[Stdcall]<IntPtr, TextureDesc*, IntPtr, IntPtr*, int>)Slot(_device, 5); // CreateTexture2D
-        var latest = new TextureDesc
+        var staging = new TextureDesc
         {
             Width = desc.Width, Height = desc.Height, MipLevels = 1, ArraySize = 1, Format = desc.Format,
-            SampleCount = 1, Usage = D3D11_USAGE_DEFAULT, BindFlags = D3D11_BIND_SHADER_RESOURCE,
+            SampleCount = 1, Usage = D3D11_USAGE_STAGING, CpuAccessFlags = D3D11_CPU_ACCESS_READ,
         };
-        var staging = latest;
-        staging.Usage = D3D11_USAGE_STAGING;
-        staging.BindFlags = 0;
-        staging.CpuAccessFlags = D3D11_CPU_ACCESS_READ;
-        IntPtr a, b;
-        Check(create(_device, &latest, IntPtr.Zero, &a));
-        _latest = a;
+        IntPtr b;
         Check(create(_device, &staging, IntPtr.Zero, &b));
         _staging = b;
-        _w = (int)desc.Width;
-        _h = (int)desc.Height;
-        _snapshot = GC.AllocateUninitializedArray<byte>(_w * _h * 4);
-        _covered = Array.Empty<Native.RECT>();
+        lock (_lock)
+        {
+            _w = (int)desc.Width;
+            _h = (int)desc.Height;
+            _snapshot = GC.AllocateUninitializedArray<byte>(_w * _h * 4);
+            _covered = Array.Empty<Native.RECT>();
+        }
+    }
+
+    private void ReleaseHeld()
+    {
+        if (_heldTexture != IntPtr.Zero) { Marshal.Release(_heldTexture); _heldTexture = IntPtr.Zero; }
+        _held?.Dispose();
+        _held = null;
     }
 
     private void FreeTextures()
     {
-        if (_latest != IntPtr.Zero) { Marshal.Release(_latest); _latest = IntPtr.Zero; }
+        ReleaseHeld();
         if (_staging != IntPtr.Zero) { Marshal.Release(_staging); _staging = IntPtr.Zero; }
-        _covered = Array.Empty<Native.RECT>();
+        lock (_lock)
+        {
+            _w = _h = 0;
+            _covered = Array.Empty<Native.RECT>();
+        }
     }
 
     private void Stop()
     {
         Current = null;
-        try { _session.Dispose(); _pool.Dispose(); } catch { }
-        lock (_lock) FreeTextures();
+        _copyLater.Dispose();
+        try
+        {
+            lock (_gpuLock) FreeTextures();
+            _session.Dispose();
+            _pool.Dispose();
+        }
+        catch { }
     }
 
     // ---------------- helpers ----------------
