@@ -171,11 +171,12 @@ public abstract class GlassWindow : Window
     [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
 
     // ---------------- slide in / out ----------------
-    // The content and the blur window's visual slide frame by frame. While sliding, the content is rendered once into
-    // a bitmap cache at device resolution, so the glass effects (refraction, blur passes, glow) aren't recomputed every
-    // frame; nothing inside the bar changes mid-slide (see ScreenSampler, the dock's magnifier) to keep that cache valid.
-    // Drawing that cache is the slide's first frame, and takes up to 200 ms over an app keeping the graphics card busy.
-    // On a clock that keeps running, the bar stood still and then jumped, losing most of the slide; this clock pauses.
+    // The content and the blur window's visual slide frame by frame; nothing inside the bar changes mid-slide (see
+    // ScreenSampler, the dock's magnifier). A slow frame - over an app keeping the graphics card busy, one can take
+    // 100 ms or more - pauses the slide: on a clock that kept running, the bar stood still and then jumped, losing most
+    // of the slide. (The content isn't cached as a bitmap while it slides any more: since the bars aren't layered windows,
+    // drawing them afresh every frame is quick enough, and a BitmapCache falls foul of WPF's lock screen bug, see
+    // RenderWatch.)
 
     /// <summary>Longest step the slide takes in one frame: a slow frame pauses it instead of making it jump ahead.</summary>
     private const double MaxSlideStepMs = 1000 / 45.0;
@@ -204,13 +205,11 @@ public abstract class GlassWindow : Window
             }
             Show();
         }
-        // hidden bars don't sample the screen: take a fresh picture now, before it's cached for the slide
+        // hidden bars don't sample the screen: take a fresh picture now, which then slides with the bar
         if (shown && !IsSliding) ScreenSampler.SampleNow(this);
 
         IsSliding = true;
         UpdateClickRegion();
-        if (Content is FrameworkElement root && root.CacheMode == null)
-            root.CacheMode = new BitmapCache(VisualTreeHelper.GetDpi(this).DpiScaleX) { SnapsToDevicePixels = true };
 
         double from = _slide.Y, to = shown ? 0 : SlideDistance;
         // a partial slide (reversed midway) takes proportionally less time
@@ -236,8 +235,6 @@ public abstract class GlassWindow : Window
             StopSlide();
             IsSliding = false;
             UpdateClickRegion();
-            // back to live rendering, then e.g. hide
-            if (Content is FrameworkElement r) r.CacheMode = null;
             completed?.Invoke();
         };
         CompositionTarget.Rendering += _slideFrame;

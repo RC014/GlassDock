@@ -80,6 +80,8 @@ public partial class App : Application
         // The glass's copy of the screen comes from the GPU when possible (BitBlt until that's running, or instead).
         if (Settings.Current.Refraction && Environment.GetEnvironmentVariable("GLASSDOCK_BITBLT") != "1") GpuCapture.Start();
 
+        // First of all GlassDock's windows (see RenderWatch: WPF's lock screen bug).
+        RenderWatch.CreateAnchor();
         Dock = new DockWindow();
         Status = new StatusWindow();
         Dock.Show();
