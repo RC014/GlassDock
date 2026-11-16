@@ -155,32 +155,44 @@ internal static class WindowsOsd
             Show(Kind.Brightness, _lastBrightness);
             return;
         }
+        int? before = _lastBrightness;
         var pending = _pendingSince = DateTime.Now;
         await Task.Delay(600);
         if (_pendingSince != pending) return; // the brightness event came and showed it
 
-        _pendingSince = DateTime.MinValue;
-        // No event: fall back to reading the brightness. Nothing changed (e.g. already at 100%)? Repeat whatever
-        // the last presses were about.
+        // No event yet: read the brightness, and compare it with what it was when the pop-up showed. (Comparing with
+        // the last value known took an event arriving during the read for "unchanged", and showed the volume.) An
+        // event arriving meanwhile still counts as the answer: the wait stays pending until the read is done.
         int? brightness = await Task.Run(SystemControls.GetBrightness);
-        bool brightnessChanged = brightness != null && brightness != _lastBrightness;
+        if (_pendingSince != pending) return; // the event came while reading, and showed it
+        _pendingSince = DateTime.MinValue;
+        bool brightnessChanged = brightness != null && brightness != before;
         _lastBrightness = brightness ?? _lastBrightness;
+        // Nothing changed (e.g. already at 100%)? Repeat whatever the last presses were about - a guess, which a
+        // brightness event arriving late still corrects.
+        bool guess = !brightnessChanged;
         var kind = brightnessChanged ? Kind.Brightness
             : (DateTime.Now - _lastShown).TotalSeconds < 3 ? _lastKind : Kind.Volume;
         Show(kind, _lastBrightness);
+        if (guess) _guessedAt = DateTime.Now;
     }
+
+    private static DateTime _guessedAt;
 
     /// <summary>A brightness change reported by Windows (keys, settings, adaptive brightness...).</summary>
     private static void OnBrightnessChanged(int value)
     {
         _lastBrightness = value;
         _brightnessChangedAt = DateTime.Now;
-        bool pending = (DateTime.Now - _pendingSince).TotalSeconds < 1;
+        // (the wait for it, plus the read that follows it, takes up to a couple of seconds)
+        bool pending = (DateTime.Now - _pendingSince).TotalSeconds < 3;
         bool showingBrightness = _lastKind == Kind.Brightness && (DateTime.Now - _lastShown).TotalSeconds < 2;
+        bool correctsGuess = (DateTime.Now - _guessedAt).TotalSeconds < 2;
         // Only together with Windows' pop-up (or while ours shows brightness, so it follows the fade and held keys):
         // changes Windows doesn't announce (adaptive brightness, our own slider) stay silent, as they do in Windows.
         if (pending) _pendingSince = DateTime.MinValue;
-        if (pending || showingBrightness) Show(Kind.Brightness, value);
+        _guessedAt = DateTime.MinValue;
+        if (pending || showingBrightness || correctsGuess) Show(Kind.Brightness, value);
     }
 
     private static void StartBrightnessEvents()

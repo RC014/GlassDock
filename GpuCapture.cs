@@ -49,13 +49,38 @@ internal sealed class GpuCapture
     private byte[] _snapshot = Array.Empty<byte>();
     private Native.RECT[] _wanted = Array.Empty<Native.RECT>();
     private Native.RECT[] _covered = Array.Empty<Native.RECT>();
-    private int _version;
+    // (shared by all captures, so a restarted one never repeats a number the glass already took)
+    private static int _version;
+    private long _lastFrame = System.Diagnostics.Stopwatch.GetTimestamp();
 
     /// <summary>Goes up by one whenever there's something new to take from <see cref="CopyTo"/>.</summary>
     public int Version => Volatile.Read(ref _version);
 
+    // Windows can stop handing over frames without saying so - after sleep, or with the graphics card "suspended" -
+    // and the glass then showed whatever it had copied last, for hours. So the capture is started afresh a moment
+    // after every wake, unlock and change of the displays, after it failed (waiting longer each time it fails again),
+    // and when glass appears after minutes without a single frame (that glass is copied with BitBlt meanwhile).
+    private static readonly TimeSpan RestartDelay = TimeSpan.FromSeconds(2), FramelessLimit = TimeSpan.FromMinutes(5);
+    private static System.Windows.Threading.DispatcherTimer? _restart;
+    private static DateTime _restartDue;
+    private static int _failures;
+    private static bool _watching;
+
     /// <summary>Starts capturing in the background; <see cref="Current"/> is set once it runs.</summary>
-    public static async void Start()
+    public static void Start()
+    {
+        if (!_watching)
+        {
+            _watching = true;
+            // (these arrive on another thread)
+            Microsoft.Win32.SystemEvents.PowerModeChanged += (_, a) => { if (a.Mode == Microsoft.Win32.PowerModes.Resume) RestartSoon(RestartDelay, "woke up"); };
+            Microsoft.Win32.SystemEvents.SessionSwitch += (_, a) => { if (a.Reason == Microsoft.Win32.SessionSwitchReason.SessionUnlock) RestartSoon(RestartDelay, "unlocked"); };
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (_, _) => RestartSoon(RestartDelay, "the displays changed");
+        }
+        _ = StartAsync();
+    }
+
+    private static async System.Threading.Tasks.Task StartAsync()
     {
         try
         {
@@ -63,9 +88,49 @@ internal sealed class GpuCapture
             // Without the yellow "being captured" border (always allowed for desktop apps; refused, we don't capture).
             var access = await GraphicsCaptureAccess.RequestAccessAsync(GraphicsCaptureAccessKind.Borderless);
             if (access != Windows.Security.Authorization.AppCapabilityAccess.AppCapabilityAccessStatus.Allowed) return;
+            Current?.Stop();
             Current = new GpuCapture();
         }
-        catch (Exception ex) { App.Log(ex); }
+        catch (Exception ex) { App.Log(ex); Failed(); }
+    }
+
+    /// <summary>Stops the capture (if running) and starts it afresh after <paramref name="delay"/>, on the UI thread;
+    /// <paramref name="why"/> goes to dock.log.</summary>
+    private static void RestartSoon(TimeSpan delay, string why)
+    {
+        var ui = System.Windows.Application.Current?.Dispatcher;
+        ui?.BeginInvoke(() =>
+        {
+            // a restart already due sooner stays as it is
+            if (_restart is { IsEnabled: true } && _restartDue <= DateTime.UtcNow + delay) return;
+            if (_restart == null)
+            {
+                _restart = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background);
+                _restart.Tick += RestartNow;
+            }
+            _restart.Stop();
+            _restart.Interval = delay;
+            _restartDue = DateTime.UtcNow + delay;
+            _restartWhy = why;
+            _restart.Start();
+        });
+    }
+
+    private static string _restartWhy = "";
+
+    private static void RestartNow(object? sender, EventArgs e)
+    {
+        _restart?.Stop();
+        ClickLog.Line($"screen capture started afresh: {_restartWhy}");
+        Current?.Stop();
+        _ = StartAsync();
+    }
+
+    /// <summary>After a failure: try again, 5 s later the first time, twice as long each time after (up to 10 min).</summary>
+    private static void Failed()
+    {
+        int n = Math.Min(Interlocked.Increment(ref _failures), 8);
+        RestartSoon(TimeSpan.FromSeconds(Math.Min(5 * Math.Pow(2, n - 1), 600)), "it failed");
     }
 
     private unsafe GpuCapture()
@@ -96,6 +161,8 @@ internal sealed class GpuCapture
         _session.IsBorderRequired = false;
         _copyLater = new Timer(_ => CopyPending());
         _pool.FrameArrived += (pool, _) => OnFrame(pool);
+        // (e.g. the screen was disconnected)
+        _item.Closed += (_, _) => { Stop(); RestartSoon(RestartDelay, "the screen went away"); };
         _session.StartCapture();
     }
 
@@ -126,8 +193,15 @@ internal sealed class GpuCapture
         }
         if (!covered)
         {
+            // ...unless that frame is minutes old: the capture may have stopped without saying so.
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(Interlocked.Read(ref _lastFrame)) > FramelessLimit)
+            {
+                RestartSoon(TimeSpan.FromSeconds(1), "no frame for minutes");
+                return -1;
+            }
             try { lock (_gpuLock) if (!Refresh()) return -1; }
-            catch (Exception ex) { App.Log(ex); Stop(); return -1; }
+            catch (Exception ex) when (!Stopped) { App.Log(ex); Stop(); Failed(); return -1; }
+            catch { return -1; }
         }
         lock (_lock)
         {
@@ -137,7 +211,7 @@ internal sealed class GpuCapture
             if (x1 > x0)
                 for (int row = y0; row < y1; row++)
                     Buffer.BlockCopy(_snapshot, (row * _w + x0) * 4, target, ((row - y) * w + (x0 - x)) * 4, (x1 - x0) * 4);
-            return _version;
+            return Volatile.Read(ref _version);
         }
     }
 
@@ -147,10 +221,14 @@ internal sealed class GpuCapture
     {
         try
         {
+            if (Stopped) return;
             var frame = pool.TryGetNextFrame();
             if (frame == null) return;
+            Interlocked.Exchange(ref _lastFrame, System.Diagnostics.Stopwatch.GetTimestamp());
+            Volatile.Write(ref _failures, 0);
             lock (_gpuLock)
             {
+                if (Stopped) { frame.Dispose(); return; }
                 if (frame.ContentSize.Width != _size.Width || frame.ContentSize.Height != _size.Height)
                 {
                     // the screen's resolution changed: new buffers from the next frame on
@@ -180,9 +258,11 @@ internal sealed class GpuCapture
         }
         catch (Exception ex)
         {
-            // e.g. the graphics driver restarted: fall back to BitBlt
+            if (Stopped) return; // stopped meanwhile (a restart)
+            // e.g. the graphics driver restarted: BitBlt until the capture is back
             App.Log(ex);
             Stop();
+            Failed();
         }
     }
 
@@ -193,10 +273,11 @@ internal sealed class GpuCapture
             lock (_gpuLock)
             {
                 _copyPending = false;
-                CopyWanted();
+                if (!Stopped) CopyWanted();
             }
         }
-        catch (Exception ex) { App.Log(ex); Stop(); }
+        catch (Exception ex) when (!Stopped) { App.Log(ex); Stop(); Failed(); }
+        catch { }
     }
 
     /// <summary>Takes a new picture of the wanted areas, if any. Call with _gpuLock held.</summary>
@@ -208,18 +289,18 @@ internal sealed class GpuCapture
             {
                 // Nothing needs it now. What was copied earlier is out of date: glass that appears takes it afresh.
                 _covered = Array.Empty<Native.RECT>();
-                _version++;
+                Interlocked.Increment(ref _version);
                 return;
             }
         }
         _lastCopy = System.Diagnostics.Stopwatch.GetTimestamp();
-        if (Refresh()) lock (_lock) _version++;
+        if (Refresh()) Interlocked.Increment(ref _version);
     }
 
     /// <summary>Copies the wanted areas of the last frame into the CPU-side snapshot. Call with _gpuLock held.</summary>
     private unsafe bool Refresh()
     {
-        if (_heldTexture == IntPtr.Zero || _staging == IntPtr.Zero) return false;
+        if (Stopped || _heldTexture == IntPtr.Zero || _staging == IntPtr.Zero) return false;
         var areas = new List<Native.RECT>();
         lock (_lock)
             foreach (var a in _wanted)
@@ -296,17 +377,22 @@ internal sealed class GpuCapture
         }
     }
 
+    private int _stopped;
+    private bool Stopped => Volatile.Read(ref _stopped) == 1;
+
     private void Stop()
     {
-        Current = null;
+        if (Interlocked.Exchange(ref _stopped, 1) == 1) return;
+        if (Current == this) Current = null;
         _copyLater.Dispose();
-        try
+        // (not under _gpuLock: closing the pool may wait for a frame handler that's waiting for that lock)
+        try { _session.Dispose(); _pool.Dispose(); } catch { }
+        lock (_gpuLock)
         {
-            lock (_gpuLock) FreeTextures();
-            _session.Dispose();
-            _pool.Dispose();
+            try { FreeTextures(); _winrtDevice.Dispose(); } catch { }
+            Marshal.Release(_context);
+            Marshal.Release(_device);
         }
-        catch { }
     }
 
     // ---------------- helpers ----------------
